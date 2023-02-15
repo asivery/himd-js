@@ -1,0 +1,38 @@
+{
+  "name": "himd-js",
+  "version": "0.1.0",
+  "description": "A library which lets you manage tracks and metadata on HiMD discs.",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asivery/himd-js.git"
+  },
+  "keywords": [
+    "netmd",
+    "himd",
+    "minidisc"
+  ],
+  "author": "asivery",
+  "license": "GPL-2.0",
+  "files": [
+    "dist"
+  ],
+  "bugs": {
+    "url": "https://github.com/asivery/himd-js/issues"
+  },
+  "homepage": "https://github.com/asivery/himd-js#readme",
+  "devDependencies": {
+    "@types/node": "^18.11.9",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "@originjs/crypto-js-wasm": "github:asivery/crypto-js-wasm",
+    "fatfs": "^0.10.8",
+    "iconv-lite": "^0.6.3",
+    "node-id3": "^0.2.5",
+    "usb": "^2.8.0"
+  }
+}
