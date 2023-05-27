@@ -5,23 +5,15 @@ import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from "./himd-filesystem
 //HACK: This seems to be a very recent addition:
 type FileSystemWritableFileStream = any;
 
-export class FSAHiMDFilesystem implements HiMDFilesystem{
-    protected constructor(protected rootDirectoryHandle: FileSystemDirectoryHandle) {}
+export class FSAHiMDFilesystem extends HiMDFilesystem{
+    protected constructor(protected rootDirectoryHandle: FileSystemDirectoryHandle) {
+        super();
+    }
+    
     static async init(){
         const handle = await (globalThis as any).showDirectoryPicker();
         return new FSAHiMDFilesystem(handle);
     }
-
-    async transformToValidCase(path: string): Promise<string>{
-        if(!path.startsWith("/")) path = "/" + path;
-        if(path === '/' || path === '') return path;
-        const parent = path.substring(0, path.lastIndexOf("/"));
-        const validParent = await this.transformToValidCase(parent);
-
-        return (await this._list(validParent))
-            .find(e => e.name.toLowerCase() === path.toLowerCase())?.name ?? path;
-    }
-
     
     async open(filePath: string, mode: "ro" | "rw" = "ro") {
         const entry = await this.resolve(this.rootDirectoryHandle, await this.transformToValidCase(filePath));
@@ -30,13 +22,9 @@ export class FSAHiMDFilesystem implements HiMDFilesystem{
         const fileEntry = entry as FileSystemFileHandle;
         const file = await fileEntry.getFile();
     
-        const writable = mode === "ro" ? null : await (fileEntry as any).createWritable();
+        const writable = mode === "ro" ? null : await (fileEntry as any).createWritable({ keepExistingData: true });
 
         return new FSAHiMDFile(file, writable);
-    }
-
-    async list(path: string): Promise<HiMDFilesystemEntry[]> {
-        return this._list(await this.transformToValidCase(path));
     }
 
     private async getFileListing(dir: FileSystemDirectoryHandle){
@@ -64,6 +52,18 @@ export class FSAHiMDFilesystem implements HiMDFilesystem{
                 type: (content as any).kind
             }));
     }
+
+    async rename(path: string, newPath: string){
+        throw new Error("no");
+    }
+
+    async getSize(path: string): Promise<number> {
+        return (await (await this.resolve(this.rootDirectoryHandle, path) as FileSystemFileHandle).getFile()).size;
+    }
+
+    async getTotalSpace(): Promise<number> {
+        return Math.pow(10, 9);
+    }
 }
 
 class FSAHiMDFile implements HiMDFile{
@@ -89,16 +89,12 @@ class FSAHiMDFile implements HiMDFile{
             throw new HiMDError("Cannot use a read-only file for writing");
         await this.writable.seek(this.offset);
         await this.writable.write(data);
+        this.offset += data.length;
+        this.length = Math.max(this.offset, this.length);
     }
 
     async close(): Promise<void> {
         if(this.writable === null) return;
         await this.writable.close();
-    }
-
-    async truncate(size: number): Promise<void> {
-        if(this.writable === null)
-            throw new HiMDError("Cannot truncate a read-only file");
-        await this.writable.truncate(size);
     }
 }

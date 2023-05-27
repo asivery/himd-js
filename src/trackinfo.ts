@@ -1,5 +1,6 @@
 import { getBytesPerFrame, HiMDCodec } from "./codecs";
 import { HiMDRawTrack } from "./himd";
+import { HIMD_AUDIO_SIZE } from "./streams";
 
 
 export function getFramesPerBlock(track: HiMDRawTrack){
@@ -11,7 +12,7 @@ export function getFramesPerBlock(track: HiMDRawTrack){
     console.log("A", frameSize, "B", Math.floor(0x3FBF / frameSize))
 
     if(track.codecId === HiMDCodec.LPCM){
-        return 0x3FC0 / 64; // 64 = SONY_VIRTUAL_LPCM_FRAMESIZE
+        return HIMD_AUDIO_SIZE / 64; // 64 = SONY_VIRTUAL_LPCM_FRAMESIZE
     }else{
         return Math.floor(0x3FBF / frameSize);
     }

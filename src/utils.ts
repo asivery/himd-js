@@ -1,4 +1,4 @@
-import { HiMDCodec } from "codecs";
+import { HiMDCodec } from "./codecs";
 
 export function getUint16(data: Uint8Array, offset: number = 0){
 	return (data[offset + 0] << 8) | data[offset + 1];
@@ -108,3 +108,6 @@ export function createLPCMHeader(bytes: number) {
     ]);
 }
 
+export function createRandomBytes(length = 8){
+    return new Uint8Array(Array(length).fill(0).map(() => Math.floor(Math.random() * 256)));
+}

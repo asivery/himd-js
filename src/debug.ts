@@ -1,4 +1,4 @@
-import { HiMD } from "himd";
+import { HiMD } from "./himd";
 
 export function* stringifyStringFreelist(himd: HiMD): Generator<string>{
     let link = 0;
