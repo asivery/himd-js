@@ -6,6 +6,7 @@ import { HiMD, HiMDError, HiMDRawTrack } from "../himd";
 import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32 } from "../utils";
 import { createIcvMac, createTrackKey, createTrackMac, decryptMaclistKey, encryptTrackKey, MAIN_KEY, retailMac } from "../encryption";
 import { inspect } from "util";
+import { Mutex } from "async-mutex";
 
 function assert(expr: boolean, message: string){
     if(!expr) throw new Error(message);
@@ -112,7 +113,7 @@ export class SonyVendorUSMCDriver extends USBMassStorageDriver {
     }
 
     async writeAuthenticationStage3Info(hostMac: Uint8Array){
-        const finalBuffer = new Uint8Array(0x41c - 2);
+        const finalBuffer = new Uint8Array(0x41a);
         finalBuffer.fill(0);
         finalBuffer.set(hostMac, 2);
         // Agree to the configuration sent by the device in stage 2
@@ -140,7 +141,7 @@ export class SonyVendorUSMCDriver extends USBMassStorageDriver {
     }
 
     async writeICV(icvHeader: Uint8Array, icv: Uint8Array, mac: Uint8Array){
-        const finalBuffer = new Uint8Array(0x0402).fill(0);
+        const finalBuffer = new Uint8Array(0x402).fill(0);
         finalBuffer.set(icvHeader, 2);
         finalBuffer.set(icv, 8 + 2);
         finalBuffer.set(mac, 16 + 8 + 2);
@@ -220,7 +221,6 @@ export class UMSCHiMDSession {
         // Verify the ICV / ICV MAC
         let icvMacVerify = createIcvMac(concatUint8Arrays([header, icv]), sessionKey);
         //assert(arrayEq(icvMac, icvMacVerify), "ICV MACs do not match!");
-        console.log("This MAC is: " + inspect(icvMac));
 
         const mclistHandle = await this.himd.openMaclistForReading();
         // Read the current generation
@@ -309,23 +309,79 @@ export class UMSCHiMDSession {
     }
 }
 
+const FIRST_N_SECTORS_CACHED = 1000;
+
 export class UMSCHiMDFilesystem extends HiMDFilesystem {
     fatfs: any;
     driver: SonyVendorUSMCDriver;
     rootPath = "/";
     volumeSize: number = 0;
     fsDriver?: SonyVendorUSMCDriver["createArbitraryFatFSVolumeDriver"] extends ((...args: any[]) => Promise<infer R>) ? R : never;
+    fsUncachedDriver?: SonyVendorUSMCDriver["createArbitraryFatFSVolumeDriver"] extends ((...args: any[]) => Promise<infer R>) ? R : never;
+    
+    cacheMutex = new Mutex();
+
     constructor(
         protected usbDevice: USBDevice
     ){
         super();
         this.driver = new SonyVendorUSMCDriver(this.usbDevice, 0x05);
     }
+    lowSectorsCache: {dirty: boolean, data: Uint8Array | null}[] = Array(FIRST_N_SECTORS_CACHED).fill(0).map(() => ({dirty: false, data: null}));
+
+    async flushLowSectors(){
+        const release = await this.cacheMutex.acquire();
+        let i = 0;
+        for(let entry of this.lowSectorsCache){
+            if(entry.dirty && entry.data){
+                await new Promise(res => this.fsUncachedDriver!.writeSectors!(i, entry.data!, res));
+            }
+            ++i;
+        }
+        this.lowSectorsCache = Array(FIRST_N_SECTORS_CACHED).fill(0).map(() => ({dirty: false, data: null}));
+        release();
+    }
 
     async init(){
         await this.driver.init();
         const partInfo = await this.driver.getCapacity();
-        this.fsDriver = await this.driver.createArbitraryFatFSVolumeDriver({ firstLBA: 0x0, sectorCount: partInfo.maxLba + 1 }, partInfo.blockSize, true);
+        this.fsUncachedDriver = await this.driver.createArbitraryFatFSVolumeDriver({ firstLBA: 0x0, sectorCount: partInfo.maxLba + 1 }, partInfo.blockSize, true);
+
+        this.fsDriver = {
+            ...this.fsUncachedDriver,
+            readSectors: async (i, dest, cb) => {
+                const release = await this.cacheMutex.acquire();
+                if(i >= FIRST_N_SECTORS_CACHED){
+                    release();
+                    console.log(`Read sector ${i} - outside of cache`);
+                    this.fsUncachedDriver!.readSectors(i, dest, cb);
+                }else if(this.lowSectorsCache[i].data !== null){
+                    console.log(`Read sector ${i} - from cache`);
+                    this.lowSectorsCache[i].data!.forEach((v, i) => dest[i] = v);
+                    release();
+                    cb(null);
+                }else{
+                    console.log(`Read sector ${i} - cache miss`);
+                    await new Promise(res => this.fsUncachedDriver!.readSectors(i, dest, res));
+                    this.lowSectorsCache[i].data = new Uint8Array([...dest]);
+                    release();
+                    cb(null);
+                }
+            },
+            writeSectors: async (i, data, cb) => {
+                if(i >= FIRST_N_SECTORS_CACHED){
+                    console.log(`Write sector ${i} - outside of cache`);
+                    this.fsUncachedDriver!.writeSectors!(i, data, cb);
+                }else{
+                    console.log(`Write sector ${i} - caching`);
+                    const release = await this.cacheMutex.acquire();
+                    this.lowSectorsCache[i].data = new Uint8Array([...data]);
+                    this.lowSectorsCache[i].dirty = true;
+                    release();
+                    cb(null);
+                }
+            }
+        }
         this.fatfs = fatfs.createFileSystem(this.fsDriver);
         this.volumeSize = partInfo.deviceSize;
     }
@@ -361,7 +417,6 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
 
         const path = join(this.rootPath, filePath);
         const stat = await new Promise<any>((res, rej) => this.fatfs.stat(path, (err: any, stat: any) => err ? rej(err) : res(stat)));
-        debugger;
         if(stat.size === 0 && stat.firstCluster === 0 && mode === "rw"){
             // This is an unallocated file.
             // Make fatfs reallocate it
@@ -435,5 +490,6 @@ class UMSCHiMDFile implements HiMDFile{
     }
     async close(): Promise<void> {
         await new Promise(res => this.parent.fatfs.close(this.fd, res));
+        await this.parent.flushLowSectors();
     }
 }
