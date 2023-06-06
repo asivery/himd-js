@@ -261,7 +261,6 @@ export class HiMD {
         await tif.write(this.tifData!);
         await tif.close();
         this.dirty = false;
-        console.log("Written!");
     }
 
     @dirty addFragment(fragment: HiMDFragment){

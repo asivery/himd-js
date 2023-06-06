@@ -299,10 +299,7 @@ export class UMSCHiMDSession {
         await mclistHandle.seek(0x70);
         await mclistHandle.write(this.allMacs!);
 
-        console.log("ICV is: " + inspect(this.currentIcv!));
-        console.log("HEADER is: " + inspect(this.currentIcvHeader!));
         const newMac = createIcvMac(concatUint8Arrays([this.currentIcvHeader!, this.currentIcv!]), this.sessionKey!);
-        console.log("New MAC is: " + inspect(newMac));
         await this.driver.writeICV(this.currentIcvHeader!, this.currentIcv!, newMac);
         await mclistHandle.close();
         this.mclistHandle = undefined;
@@ -353,15 +350,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
                 const release = await this.cacheMutex.acquire();
                 if(i >= FIRST_N_SECTORS_CACHED){
                     release();
-                    console.log(`Read sector ${i} - outside of cache`);
                     this.fsUncachedDriver!.readSectors(i, dest, cb);
                 }else if(this.lowSectorsCache[i].data !== null){
-                    console.log(`Read sector ${i} - from cache`);
                     this.lowSectorsCache[i].data!.forEach((v, i) => dest[i] = v);
                     release();
                     cb(null);
                 }else{
-                    console.log(`Read sector ${i} - cache miss`);
                     await new Promise(res => this.fsUncachedDriver!.readSectors(i, dest, res));
                     this.lowSectorsCache[i].data = new Uint8Array([...dest]);
                     release();
@@ -370,10 +364,8 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
             },
             writeSectors: async (i, data, cb) => {
                 if(i >= FIRST_N_SECTORS_CACHED){
-                    console.log(`Write sector ${i} - outside of cache`);
                     this.fsUncachedDriver!.writeSectors!(i, data, cb);
                 }else{
-                    console.log(`Write sector ${i} - caching`);
                     const release = await this.cacheMutex.acquire();
                     this.lowSectorsCache[i].data = new Uint8Array([...data]);
                     this.lowSectorsCache[i].dirty = true;
@@ -434,7 +426,6 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
     }
 
     async rename(path: string, newPath: string){
-        console.log("rename " + path + " to " + newPath);
         const exists = await new Promise(res => {
             this.fatfs.stat(newPath, (err: any, stat: any) => {
                 if(err) return res(false);
