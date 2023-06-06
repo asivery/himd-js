@@ -1,18 +1,17 @@
-import { getBytesPerFrame, HiMDCodec } from "./codecs";
-import { HiMDRawTrack } from "./himd";
-import { HIMD_AUDIO_SIZE } from "./streams";
+import { getBytesPerFrame, HiMDCodec } from './codecs';
+import { HiMDRawTrack } from './himd';
+import { HIMD_AUDIO_SIZE } from './streams';
 
-
-export function getFramesPerBlock(track: HiMDRawTrack){
+export function getFramesPerBlock(track: HiMDRawTrack) {
     const frameSize = getBytesPerFrame(track);
-    if(frameSize === 0){ // 0 = TRACK_IS_MPEG
+    if (frameSize === 0) {
+        // 0 = TRACK_IS_MPEG
         return 0;
     }
 
-    if(track.codecId === HiMDCodec.LPCM){
+    if (track.codecId === HiMDCodec.LPCM) {
         return HIMD_AUDIO_SIZE / 64; // 64 = SONY_VIRTUAL_LPCM_FRAMESIZE
-    }else{
-        return Math.floor(0x3FBF / frameSize);
+    } else {
+        return Math.floor(0x3fbf / frameSize);
     }
 }
-

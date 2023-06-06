@@ -26,6 +26,7 @@
   "homepage": "https://github.com/asivery/himd-js#readme",
   "devDependencies": {
     "@types/node": "^18.11.9",
+    "prettier": "^2.8.8",
     "typescript": "^4.8.4"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "async-mutex": "^0.4.0",
     "fatfs": "^0.10.8",
     "iconv-lite": "^0.6.3",
+    "jconv": "^0.1.5",
     "mp3-parser": "^0.3.0",
     "node-id3": "^0.2.5",
     "node-mass-storage": "^0.1.3",

@@ -7,9 +7,9 @@ import { HiMDBlockStream, HiMDMP3Stream, HiMDNonMP3Stream, HiMDWriteStream } fro
 import { createTrackKey, getMP3EncryptionKey, initCrypto } from './encryption';
 import jconv from 'jconv';
 
-function encode(encoding: HiMDStringEncoding, content: string){
+function encode(encoding: HiMDStringEncoding, content: string) {
     // iconv writes incorrect sjis
-    if(encoding === HiMDStringEncoding.SHIFT_JIS){
+    if (encoding === HiMDStringEncoding.SHIFT_JIS) {
         return jconv.encode(content, 'sjis');
     }
     const map = {
@@ -18,9 +18,9 @@ function encode(encoding: HiMDStringEncoding, content: string){
     };
     const encodingName = map[encoding];
     const encoder = iconv.getEncoder(encodingName);
-    try{
+    try {
         return new Uint8Array(encoder.write(content));
-    }catch(ex){
+    } catch (ex) {
         return null;
     }
 }
@@ -68,7 +68,7 @@ export interface DOSTime {
     year: number;
 }
 
-export interface HiMDStringChunk{
+export interface HiMDStringChunk {
     content: Uint8Array;
     link: number;
     type: HiMDStringType;
@@ -76,28 +76,24 @@ export interface HiMDStringChunk{
 
 export const DOSTIME_NULL = parseDOSTime(new Uint8Array(4).fill(0));
 
-export function parseDOSTime(raw: Uint8Array, offset: number = 0): DOSTime{
+export function parseDOSTime(raw: Uint8Array, offset: number = 0): DOSTime {
     const time = getUint16(raw, 2 + offset);
     const date = getUint16(raw, 0 + offset);
-    
+
     return {
-        second: (time & 0x1F) * 2,
-        minute: ((time & 0x7E0) >> 5),
-        hour: ((time & 0xF100) >> 11),
-        day: (date & 0x1F),
-        month: ((date & 0x1E0) >> 5) - 1,
-        year: ((date & 0xFE00) >> 9) + 80,
+        second: (time & 0x1f) * 2,
+        minute: (time & 0x7e0) >> 5,
+        hour: (time & 0xf100) >> 11,
+        day: date & 0x1f,
+        month: ((date & 0x1e0) >> 5) - 1,
+        year: ((date & 0xfe00) >> 9) + 80,
     };
 }
 
-export function serializeDosTime(parsed: DOSTime){
-    const date = parsed.day | 
-                 ((parsed.month + 1) << 5) |
-                 ((parsed.year - 80) << 9);
-    const time = (parsed.second / 2) |
-                 (parsed.minute << 5) |
-                 (parsed.hour << 11);
-    
+export function serializeDosTime(parsed: DOSTime) {
+    const date = parsed.day | ((parsed.month + 1) << 5) | ((parsed.year - 80) << 9);
+    const time = (parsed.second / 2) | (parsed.minute << 5) | (parsed.hour << 11);
+
     const buffer = new Uint8Array(4);
     setUint16(buffer, date, 0);
     setUint16(buffer, time, 2);
@@ -112,30 +108,30 @@ export interface HiMDRawTrack {
     artistIndex: number;
     albumIndex: number;
     trackInAlbum: number;
-    
+
     key: Uint8Array;
     mac: Uint8Array;
-    
+
     codecId: HiMDCodec;
     codecInfo: Uint8Array;
     firstFragment: number;
     trackNumber: number;
     seconds: number;
-    
+
     lt: number;
     dest: number;
-    
+
     contentId: Uint8Array;
     licenseStartTime: DOSTime;
     licenseEndTime: DOSTime;
-    
+
     xcc: number;
     ct: number;
     cc: number;
     cn: number;
 }
 
-export interface HiMDFragment{
+export interface HiMDFragment {
     key: Uint8Array;
     firstBlock: number;
     lastBlock: number;
@@ -152,7 +148,7 @@ export interface HiMDRawGroup {
     titleIndex: number;
 }
 
-export interface HiMDBlockInfo{
+export interface HiMDBlockInfo {
     type: Uint8Array; // "LPCM" or "A3D " or "ATX" or "SMPA"
     nFrames: number;
     mCode: number;
@@ -171,9 +167,9 @@ export interface HiMDBlockInfo{
     backupSerialNumber: number;
 }
 
-function dirty(target: any, propertyKey: string, descriptor: PropertyDescriptor){
+function dirty(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const old = descriptor.value as (...args: any) => any;
-    descriptor.value = function(...args: any) {
+    descriptor.value = function (...args: any) {
         (this as any).dirty = true;
         return old.apply(this, args);
     };
@@ -185,75 +181,73 @@ export class HiMD {
     protected tifData?: Uint8Array;
     protected discId?: Uint8Array;
     protected dirty: boolean = false;
-    
+
     protected constructor(public filesystem: HiMDFilesystem) {}
-    static async init(filesystem: HiMDFilesystem){
+    static async init(filesystem: HiMDFilesystem) {
         await initCrypto();
 
         const himd = new HiMD(filesystem);
-        
+
         await himd.findDatanum();
         await himd.loadTifdata();
         await himd.readDiscId();
         return himd;
     }
 
-    protected async findDatanum(){
+    protected async findDatanum() {
         let maxDatanum = -1;
-        for(let {name, type} of await this.filesystem.list("/HMDHIFI")){
+        for (let { name, type } of await this.filesystem.list('/HMDHIFI')) {
             const match = name.match(/(.*)atdata([0-9a-f]{2})\.hma$/i);
-            if(match === null || type === "directory") continue;
+            if (match === null || type === 'directory') continue;
             const datanum = parseInt(match[2], 16);
-            if(maxDatanum !== -1)
-                console.log('[HiMD]: Found more than one data root file. This should not happen.');
+            if (maxDatanum !== -1) console.log('[HiMD]: Found more than one data root file. This should not happen.');
             maxDatanum = datanum;
         }
-        if(maxDatanum == -1)
-            throw new HiMDError("Cannot find the track index file");
-        
+        if (maxDatanum == -1) throw new HiMDError('Cannot find the track index file');
+
         this.datanum = maxDatanum;
     }
 
-    protected getDatanumDependentName(name: string, datanum = this.datanum!){
+    protected getDatanumDependentName(name: string, datanum = this.datanum!) {
         return `/hmdhifi/${name}${datanum.toString(16).padStart(2, '0')}.hma`;
     }
 
-    protected async openDatanumDependent(name: string, mode?: "rw" | "ro"){
+    protected async openDatanumDependent(name: string, mode?: 'rw' | 'ro') {
         return this.filesystem.open(this.getDatanumDependentName(name), mode);
     }
 
-    protected async openTifFile(mode?: "rw" | "ro"){
-        return this.openDatanumDependent("trkidx", mode);
+    protected async openTifFile(mode?: 'rw' | 'ro') {
+        return this.openDatanumDependent('trkidx', mode);
     }
-    
-    protected async loadTifdata(){
+
+    protected async loadTifdata() {
         const entry = await this.openTifFile();
         this.tifData = await entry.read();
         await entry.close();
 
         const magic = this.tifData!.subarray(0, 4);
-        const validMagic = new TextEncoder().encode("TIF ");
-        
-        if(!magic.every((a, i) => a === validMagic[i]) || this.tifData.length !== 0x50000)
-            throw new HiMDError("Invalid TRKIDX...HMA file");
+        const validMagic = new TextEncoder().encode('TIF ');
+
+        if (!magic.every((a, i) => a === validMagic[i]) || this.tifData.length !== 0x50000)
+            throw new HiMDError('Invalid TRKIDX...HMA file');
     }
 
-    protected getSubarray(start: number, length: number){
+    protected getSubarray(start: number, length: number) {
         return this.tifData!.subarray(start, start + length);
     }
 
-    async flush(){
-        if(!this.dirty){
+    async flush() {
+        if (!this.dirty) {
             return;
         }
-        const tif = await this.openTifFile("rw");
+        const tif = await this.openTifFile('rw');
         await tif.seek(0);
         await tif.write(this.tifData!);
         await tif.close();
         this.dirty = false;
     }
 
-    @dirty addFragment(fragment: HiMDFragment){
+    @dirty addFragment(fragment: HiMDFragment) {
         const freelistFragment = this.getFragment(0);
         let newFragmentIndex = freelistFragment.nextFragment;
         let newFragment = this.getFragment(newFragmentIndex);
@@ -263,7 +257,7 @@ export class HiMD {
         return newFragmentIndex;
     }
 
-    @dirty writeFragment(index: number, fragment: HiMDFragment){
+    @dirty writeFragment(index: number, fragment: HiMDFragment) {
         const raw = this.getSubarray(0x30000 + 0x10 * index, 0x10);
         raw.set(fragment.key, 0);
         setUint16(raw, fragment.firstBlock, 8);
@@ -271,11 +265,11 @@ export class HiMD {
         raw[12] = fragment.firstFrame;
         raw[13] = fragment.lastFrame;
         let temp = fragment.fragmentType << 12;
-        temp |= fragment.nextFragment & 0xFFF;
+        temp |= fragment.nextFragment & 0xfff;
         setUint16(raw, temp, 14);
     }
-    
-    getFragment(index: number): HiMDFragment{
+
+    getFragment(index: number): HiMDFragment {
         const raw = this.getSubarray(0x30000 + 0x10 * index, 0x10);
         return {
             key: raw.slice(0, 8),
@@ -284,15 +278,15 @@ export class HiMD {
             firstFrame: raw[12],
             lastFrame: raw[13],
             fragmentType: raw[14] >> 4,
-            nextFragment: getUint16(raw, 14) & 0xFFF,
+            nextFragment: getUint16(raw, 14) & 0xfff,
         };
     }
-        
-    getStringChunk(index: number): HiMDStringChunk{
+
+    getStringChunk(index: number): HiMDStringChunk {
         const rawBuffer = this.getSubarray(0x40000 + 0x10 * index, 0x10);
         const flags = getUint16(rawBuffer, 14);
-        
-        const link = flags & 0xFFF;
+
+        const link = flags & 0xfff;
         const type = (flags >> 12) as HiMDStringType;
         return {
             content: rawBuffer.slice(0, 14),
@@ -301,58 +295,56 @@ export class HiMD {
         };
     }
 
-    @dirty writeStringChunk(index: number, chunk: HiMDStringChunk){
-        assert(chunk.content.length === 14, "String chunk content must be equal to 14");
+    @dirty writeStringChunk(index: number, chunk: HiMDStringChunk) {
+        assert(chunk.content.length === 14, 'String chunk content must be equal to 14');
 
         const rawBuffer = this.getSubarray(0x40000 + 0x10 * index, 0x10);
-        const flags = (chunk.link & 0xFFF) | (chunk.type << 12);
+        const flags = (chunk.link & 0xfff) | (chunk.type << 12);
         setUint16(rawBuffer, flags, 14);
-        chunk.content.forEach((e, i) => rawBuffer[i] = e);
+        chunk.content.forEach((e, i) => (rawBuffer[i] = e));
     }
 
-    trackIndexToTrackSlot(index: number){
+    trackIndexToTrackSlot(index: number) {
         return getUint16(this.tifData!, 0x102 + 2 * index);
     }
 
-    @dirty writeTrackIndexToTrackSlot(index: number, slot: number){
+    @dirty writeTrackIndexToTrackSlot(index: number, slot: number) {
         setUint16(this.tifData!, slot, 0x102 + 2 * index);
     }
 
     getRawString(rootIndex: number) {
         const rootString = this.getStringChunk(rootIndex);
-        if(rootString.type < 0x8)
-            throw new HiMDError("Root fragment is not a valid root");
+        if (rootString.type < 0x8) throw new HiMDError('Root fragment is not a valid root');
         const stringPieces: Uint8Array[] = [];
         let piece = rootString;
-        for(;;){
+        for (;;) {
             stringPieces.push(piece.content);
-            if(piece.link === 0) break;
+            if (piece.link === 0) break;
             piece = this.getStringChunk(piece.link);
         }
         return concatUint8Arrays(stringPieces);
     }
-    
-    getString(index: number){
+
+    getString(index: number) {
         let raw = this.getRawString(index);
         const encoding = raw[0] as HiMDStringEncoding;
         const bfr = Buffer.from(raw.slice(1));
 
         let str;
-        switch(encoding){
+        switch (encoding) {
             case HiMDStringEncoding.LATIN1:
-                str = iconv.decode(bfr, "latin1");
+                str = iconv.decode(bfr, 'latin1');
                 break;
             case HiMDStringEncoding.SHIFT_JIS:
-                str = iconv.decode(bfr, "sjis");
+                str = iconv.decode(bfr, 'sjis');
                 break;
             case HiMDStringEncoding.UTF16BE:
-                str = iconv.decode(bfr, "utf16-be");
+                str = iconv.decode(bfr, 'utf16-be');
                 break;
             default:
                 throw new HiMDError(`Invalid encoding ${encoding}`);
         }
-        if(str.includes("\x00"))
-            str = str.substring(0, str.indexOf("\x00"));
+        if (str.includes('\x00')) str = str.substring(0, str.indexOf('\x00'));
         return str;
     }
 
@@ -375,11 +367,11 @@ export class HiMD {
         rawBuffer[6] = group.groupIndex === -1 ? 0 : 0x10;
     }
 
-    getDiscTitle(): string | null{
+    getDiscTitle(): string | null {
         const rootGroup = this.getGroup(0);
         return rootGroup.titleIndex === 0 ? null : this.getString(rootGroup.titleIndex);
     }
-    
+
     getTrack(trackSlotIndex: number): HiMDRawTrack {
         assert(trackSlotIndex >= 0 && trackSlotIndex <= 2047);
 
@@ -410,13 +402,13 @@ export class HiMD {
         };
     }
 
-    getNextFreeTrackSlot(){
+    getNextFreeTrackSlot() {
         const freelistTrack = this.getTrack(0);
         const newTrackIndex = freelistTrack.trackNumber;
         return newTrackIndex;
     }
 
-    @dirty addTrack(track: HiMDRawTrack){
+    @dirty addTrack(track: HiMDRawTrack) {
         const freelistTrack = this.getTrack(0);
         const newTrackIndex = freelistTrack.trackNumber;
         const freeTrackObject = this.getTrack(newTrackIndex);
@@ -429,7 +421,7 @@ export class HiMD {
         return newTrackIndex;
     }
 
-    @dirty writeTrack(trackSlotIndex: number, track: HiMDRawTrack, writeTo?: Uint8Array){
+    @dirty writeTrack(trackSlotIndex: number, track: HiMDRawTrack, writeTo?: Uint8Array) {
         assert(trackSlotIndex >= 0 && trackSlotIndex <= 2047);
 
         const rawBuffer = writeTo ?? this.getSubarray(0x8000 + 0x50 * trackSlotIndex, 0x50);
@@ -464,22 +456,18 @@ export class HiMD {
         rawBuffer[79] = track.cn;
     }
 
-    getTrackCount(){
+    getTrackCount() {
         return getUint16(this.tifData!, 0x100);
     }
 
-    @dirty writeTrackCount(number: number){
+    @dirty writeTrackCount(number: number) {
         setUint16(this.tifData!, number, 0x100);
     }
 
-    getGroupCount(){
-        for(let i = 1; i<256; i++){
+    getGroupCount() {
+        for (let i = 1; i < 256; i++) {
             let group = this.getGroup(i);
-            if(
-                group.endTrackIndex === 0 &&
-                group.startTrackIndex === -1 &&
-                group.titleIndex === 0
-            ){
+            if (group.endTrackIndex === 0 && group.startTrackIndex === -1 && group.titleIndex === 0) {
                 // Group doesn't exist
                 return i - 1;
             }
@@ -487,14 +475,14 @@ export class HiMD {
         return 256;
     }
 
-    @dirty eraseGroup(index: number){
+    @dirty eraseGroup(index: number) {
         this.writeGroup(index, HIMD_NO_GROUP);
     }
 
-    @dirty removeString(index: number){
-        if(index === 0) return;
+    @dirty removeString(index: number) {
+        if (index === 0) return;
         const freelist = this.getStringChunk(0);
-        
+
         // Freelist points to the next free chunk
         const nextFreeChunk = freelist.link;
 
@@ -503,11 +491,11 @@ export class HiMD {
 
         this.writeStringChunk(0, freelist);
 
-        while(index !== 0){
+        while (index !== 0) {
             const chunk = this.getStringChunk(index);
             chunk.content.fill(0);
             chunk.type = HiMDStringType.UNUSED;
-            if(chunk.link === 0){
+            if (chunk.link === 0) {
                 // This is the final chunk.
                 chunk.link = nextFreeChunk;
                 this.writeStringChunk(index, chunk);
@@ -518,26 +506,31 @@ export class HiMD {
         }
     }
 
-    @dirty addString(string: string, type: HiMDStringType): number{
+    @dirty addString(string: string, type: HiMDStringType): number {
         let encodedText: Array<number> | null = null;
 
         const encodingOrder: [HiMDStringEncoding, [number, number][]][] = [
             [HiMDStringEncoding.LATIN1, [[0x20, 0x7e]]],
-            [HiMDStringEncoding.SHIFT_JIS, [
-                [0x20, 0x7e],
-                [0x3040, 0x309f],
-                [0x30a0, 0x30ff],
-                [0x31f0, 0x31ff],
-                [0xff61, 0xff9f],
-				[0x4e00, 0x9ffc],
-            ]],
+            [
+                HiMDStringEncoding.SHIFT_JIS,
+                [
+                    [0x20, 0x7e],
+                    [0x3040, 0x309f],
+                    [0x30a0, 0x30ff],
+                    [0x31f0, 0x31ff],
+                    [0xff61, 0xff9f],
+                    [0x4e00, 0x9ffc],
+                ],
+            ],
             [HiMDStringEncoding.UTF16BE, [[0, Infinity]]],
         ];
 
-        const stringAsNumbers = Array(string.length).fill(0).map((_, i) => string.charCodeAt(i));
+        const stringAsNumbers = Array(string.length)
+            .fill(0)
+            .map((_, i) => string.charCodeAt(i));
 
-        for(let [format, ranges] of encodingOrder) {
-            if(ranges.some(range => stringAsNumbers.every(char => range[0] <= char && char <= range[1]))){
+        for (let [format, ranges] of encodingOrder) {
+            if (ranges.some((range) => stringAsNumbers.every((char) => range[0] <= char && char <= range[1]))) {
                 let uEncodedText = encode(format, string);
                 encodedText = Array.from(uEncodedText!);
                 // Append the information about the encoding
@@ -545,38 +538,30 @@ export class HiMD {
                 break;
             }
         }
-        if(encodedText === null)
-            throw new HiMDError("Cannot encode the string");
-        
+        if (encodedText === null) throw new HiMDError('Cannot encode the string');
+
         // +13 for rounding up
         const slots = Math.floor((encodedText.length + 13) / 14);
 
-
-        // Make sure there's at least $slots free strings 
+        // Make sure there's at least $slots free strings
         let index = 0;
-        for(let i = 0; i<slots; i++){
+        for (let i = 0; i < slots; i++) {
             const chunk = this.getStringChunk(index);
-            if(chunk.type !== HiMDStringType.UNUSED)
-                throw new HiMDError("Freelist string chain broken");
-            if(chunk.link === 0)
-                throw new HiMDError("Not enough free string slots");
-            
+            if (chunk.type !== HiMDStringType.UNUSED) throw new HiMDError('Freelist string chain broken');
+            if (chunk.link === 0) throw new HiMDError('Not enough free string slots');
+
             index = chunk.link;
         }
 
         // Follow through - write the strings
         let startIndex = /* freelist */ this.getStringChunk(0).link;
         index = startIndex;
-        for(let i = 0; i<slots; i++){
+        for (let i = 0; i < slots; i++) {
             const chunk = this.getStringChunk(index);
-            chunk.content = padStartUint8Array(
-                Uint8Array.from(encodedText.splice(0, 14)),
-                14,
-            );
+            chunk.content = padStartUint8Array(Uint8Array.from(encodedText.splice(0, 14)), 14);
             chunk.type = i == 0 ? type : HiMDStringType.CONTINUATION;
             let nextLink = chunk.link;
-            if(i === slots - 1)
-                chunk.link = 0;
+            if (i === slots - 1) chunk.link = 0;
             this.writeStringChunk(index, chunk);
             index = nextLink;
         }
@@ -590,94 +575,75 @@ export class HiMD {
         return startIndex;
     }
 
-    isDirty(){
+    isDirty() {
         return this.dirty;
     }
 
-    async openBlockStream(firstFragment: number, framesPerBlock: number){
+    async openBlockStream(firstFragment: number, framesPerBlock: number) {
         const fragments = [];
-        
+
         let fragmentNumber = firstFragment;
-        while(fragmentNumber !== 0){
+        while (fragmentNumber !== 0) {
             const fragment = this.getFragment(fragmentNumber);
             fragments.push(fragment);
             fragmentNumber = fragment.nextFragment;
         }
 
-        const atdata = await this.openDatanumDependent("atdata", "ro");
-        return new HiMDBlockStream(
-            this,
-            atdata,
-            fragments,
-            framesPerBlock
-        );
+        const atdata = await this.openDatanumDependent('atdata', 'ro');
+        return new HiMDBlockStream(this, atdata, fragments, framesPerBlock);
     }
 
-    async openNonMP3Stream(trackNumber: number){
+    async openNonMP3Stream(trackNumber: number) {
         const track = this.getTrack(trackNumber);
         const blockStream = await this.openBlockStream(track.firstFragment, getFramesPerBlock(track));
         const masterKey = createTrackKey(track.ekbNumber, track.key);
-        return new HiMDNonMP3Stream(
-            blockStream,
-            getBytesPerFrame(track),
-            masterKey
-        );
+        return new HiMDNonMP3Stream(blockStream, getBytesPerFrame(track), masterKey);
     }
 
-    async openMP3Stream(trackNumber: number){
+    async openMP3Stream(trackNumber: number) {
         const track = this.getTrack(trackNumber);
         const blockStream = await this.openBlockStream(track.firstFragment, 0);
         const key = getMP3EncryptionKey(this, trackNumber);
-        return new HiMDMP3Stream(
-            blockStream,
-            getBytesPerFrame(track),
-            key
-        );
+        return new HiMDMP3Stream(blockStream, getBytesPerFrame(track), key);
     }
 
-    async openAtdataForWriting(){
-        const atdata = await this.openDatanumDependent("atdata", 'rw');
+    async openAtdataForWriting() {
+        const atdata = await this.openDatanumDependent('atdata', 'rw');
         atdata.seek(atdata.length);
         return atdata;
     }
 
-    async openMaclistForWriting(){
-        const maclist = await this.openDatanumDependent("mclist", 'rw');
+    async openMaclistForWriting() {
+        const maclist = await this.openDatanumDependent('mclist', 'rw');
         return maclist;
     }
 
-    async openMaclistForReading(){
-        const maclist = await this.openDatanumDependent("mclist", 'ro');
+    async openMaclistForReading() {
+        const maclist = await this.openDatanumDependent('mclist', 'ro');
         return maclist;
     }
 
-    async advanceGeneration(newGeneration: number){
+    async advanceGeneration(newGeneration: number) {
         let newDataNum = newGeneration % 16;
-        for(let e of ["atdata", "mclist", "trkidx"]){
-            await this.filesystem.rename(
-                this.getDatanumDependentName(e, this.datanum!),
-                this.getDatanumDependentName(e, newDataNum),
-            );
+        for (let e of ['atdata', 'mclist', 'trkidx']) {
+            await this.filesystem.rename(this.getDatanumDependentName(e, this.datanum!), this.getDatanumDependentName(e, newDataNum));
         }
         this.datanum = newDataNum;
     }
 
-    async openWriteStream(){
+    async openWriteStream() {
         const atdata = await this.openAtdataForWriting();
-        return new HiMDWriteStream(
-            this,
-            atdata,
-        );
+        return new HiMDWriteStream(this, atdata);
     }
 
-    protected async readDiscId(){
-        const file = await this.openDatanumDependent("MCLIST");
+    protected async readDiscId() {
+        const file = await this.openDatanumDependent('MCLIST');
         await file.seek(0x40);
         this.discId = await file.read(0x10);
         await file.close();
     }
 
-    getDiscId(){
+    getDiscId() {
         return this.discId;
     }
 }
