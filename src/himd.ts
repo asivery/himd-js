@@ -6,20 +6,6 @@ import { getFramesPerBlock } from './trackinfo';
 import { HiMDBlockStream, HiMDMP3Stream, HiMDNonMP3Stream, HiMDWriteStream } from './streams';
 import { createTrackKey, getMP3EncryptionKey, initCrypto } from './encryption';
 
-function getErroringEncoder(encoding: string){
-    // HACK: This library doesn't support erroring-out when an unencodable char is encountered
-    // This connects the "fallback" characters to erroring-out getters.
-    const errorOut = () => { throw new Error("Encoding Error") };
-
-    Object.defineProperty(iconv, "defaultCharSingleByte", { get: errorOut });
-    Object.defineProperty(iconv, "defaultCharUnicode", { get: errorOut });
-    const encoder = iconv.getEncoder(encoding);
-    
-    Object.defineProperty(encoder, "defaultCharSingleByte", { get: errorOut });
-    Object.defineProperty(encoder, "defaultCharUnicode", { get: errorOut });
-    return encoder;
-}
-
 function encode(encoding: HiMDStringEncoding, content: string){
     const map = {
         [HiMDStringEncoding.LATIN1]: 'latin1',

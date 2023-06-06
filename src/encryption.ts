@@ -1,4 +1,4 @@
-import { HiMD, HiMDBlockInfo, HiMDError } from "./himd";
+import { HiMD, HiMDError } from "./himd";
 import { getUint32, setUint32, wordArrayToByteArray } from "./utils";
 import Crypto from '@originjs/crypto-js-wasm';
 

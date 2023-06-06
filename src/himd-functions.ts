@@ -7,7 +7,6 @@ import { create as createID3 } from 'node-id3';
 import { getMP3EncryptionKey } from "./encryption";
 import { readTags, readFrame, FrameHeader, Header } from 'mp3-parser';
 import { UMSCHiMDSession } from "./filesystem";
-import { dumpHex } from "node-mass-storage";
 
 export interface HiMDTrack {
     index: number;
@@ -74,7 +73,7 @@ export function getGroups(himd: HiMD): HiMDGroup[]{
         groups.push({
             groupIndex: group.groupIndex - 1, // himd-functions counts groups from 0, physical group 0 is reserved - convert.
             startIndex: group.startTrackIndex,
-            title: group.titleIndex === 0 ? null : himd.getString(group.titleIndex),
+            title: group.titleIndex === 0 ? "" : himd.getString(group.titleIndex),
             tracks: ungrouped.splice(group.startTrackIndex, group.endTrackIndex - group.startTrackIndex),
         });
     }

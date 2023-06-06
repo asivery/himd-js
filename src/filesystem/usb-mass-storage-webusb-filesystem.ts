@@ -1,11 +1,10 @@
 import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from "./himd-filesystem";
-import { CDB_LEN_TABLE, getBEUint32, USBMassStorageDriver } from 'node-mass-storage';
+import { USBMassStorageDriver } from 'node-mass-storage';
 import fatfs from 'fatfs';
 import { join } from "path";
 import { HiMD, HiMDError, HiMDRawTrack } from "../himd";
 import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32 } from "../utils";
 import { createIcvMac, createTrackKey, createTrackMac, decryptMaclistKey, encryptTrackKey, MAIN_KEY, retailMac } from "../encryption";
-import { inspect } from "util";
 import { Mutex } from "async-mutex";
 
 function assert(expr: boolean, message: string){
