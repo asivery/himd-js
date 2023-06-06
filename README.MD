@@ -85,4 +85,4 @@ async function example(){
 
 ### Credits
 - Thank you to M Karcher over at the MiniDisc.wiki Discord server for explaining how the DRM implemented by HiMD devices works. This wouldn't be possible without his incredible help.
-- The linux-minidisc documentation on HiMD SCSI commands and file formats ([1](https://wiki.physik.fu-berlin.de/linux-minidisc/himddownload), [2](https://wiki.physik.fu-berlin.de/linux-minidisc/doku.php?id=himddiskformat), [3](https://wiki.physik.fu-berlin.de/linux-minidisc/himdscsi))
+- The linux-minidisc documentation on HiMD SCSI commands and file formats ([1](https://wiki.physik.fu-berlin.de/linux-minidisc/himddownload), [2](https://wiki.physik.fu-berlin.de/linux-minidisc/doku.php?id=himddiskformat), [3](https://wiki.physik.fu-berlin.de/linux-minidisc/himdscsi), [4](https://wiki.physik.fu-berlin.de/linux-minidisc/himddownload-keystuff))
