@@ -5,11 +5,15 @@ import iconv from 'iconv-lite';
 import { getFramesPerBlock } from './trackinfo';
 import { HiMDBlockStream, HiMDMP3Stream, HiMDNonMP3Stream, HiMDWriteStream } from './streams';
 import { createTrackKey, getMP3EncryptionKey, initCrypto } from './encryption';
+import jconv from 'jconv';
 
 function encode(encoding: HiMDStringEncoding, content: string){
+    // iconv writes incorrect sjis
+    if(encoding === HiMDStringEncoding.SHIFT_JIS){
+        return jconv.encode(content, 'sjis');
+    }
     const map = {
         [HiMDStringEncoding.LATIN1]: 'latin1',
-        [HiMDStringEncoding.SHIFT_JIS]: 'sjis',
         [HiMDStringEncoding.UTF16BE]: 'utf16be',
     };
     const encodingName = map[encoding];
@@ -519,14 +523,14 @@ export class HiMD {
 
         const encodingOrder: [HiMDStringEncoding, [number, number][]][] = [
             [HiMDStringEncoding.LATIN1, [[0x20, 0x7e]]],
-            // [HiMDStringEncoding.SHIFT_JIS, [
-            //     [0x20, 0x7e],
-            //     [0x3040, 0x309f],
-            //     [0x30a0, 0x30ff],
-            //     [0x31f0, 0x31ff],
-            //     [0xff61, 0xff9f],
-			// 	[0x4e00, 0x9ffc],
-            // ]],
+            [HiMDStringEncoding.SHIFT_JIS, [
+                [0x20, 0x7e],
+                [0x3040, 0x309f],
+                [0x30a0, 0x30ff],
+                [0x31f0, 0x31ff],
+                [0xff61, 0xff9f],
+				[0x4e00, 0x9ffc],
+            ]],
             [HiMDStringEncoding.UTF16BE, [[0, Infinity]]],
         ];
 
