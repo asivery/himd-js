@@ -2,7 +2,7 @@ import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from './himd-filesystem
 import { USBMassStorageDriver } from 'node-mass-storage';
 import fatfs from 'fatfs';
 import { join } from 'path';
-import { HiMD, HiMDError, HiMDRawTrack } from '../himd';
+import { HiMD, HiMDError, HiMDRawTrack, DevicesIds } from '../himd';
 import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32 } from '../utils';
 import { createIcvMac, createTrackKey, createTrackMac, decryptMaclistKey, encryptTrackKey, MAIN_KEY, retailMac } from '../encryption';
 import { Mutex } from 'async-mutex';
@@ -468,6 +468,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
             this.fatfs.stat(join(this.rootPath, path), (err: any, stats: any) => (err ? rej(err) : res(stats)))
         );
         return stats.size;
+    }
+
+    getName(){
+        let { vendorId, productId } = this.usbDevice;
+        let deviceId = DevicesIds.find(device => device.deviceId === productId && device.vendorId === vendorId);
+        return deviceId?.name || 'Unknown Device';
     }
 }
 

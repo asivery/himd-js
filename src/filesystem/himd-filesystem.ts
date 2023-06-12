@@ -27,6 +27,7 @@ export abstract class HiMDFilesystem {
         return bytes;
     }
 
+    abstract getName(): string;
     abstract open(filePath: string, mode?: 'ro' | 'rw'): Promise<HiMDFile>;
     abstract _list(path: string): Promise<HiMDFilesystemEntry[]>;
     abstract rename(path: string, newPath: string): Promise<void>;

@@ -62,6 +62,10 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     async getTotalSpace(): Promise<number> {
         return Math.pow(10, 9);
     }
+
+    getName() {
+        return "FSA";
+    }
 }
 
 class FSAHiMDFile implements HiMDFile {

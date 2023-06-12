@@ -74,6 +74,23 @@ export interface HiMDStringChunk {
     type: HiMDStringType;
 }
 
+export const DevicesIds: { vendorId: number, deviceId: number, name: string }[] = [
+    { vendorId: 0x5341, deviceId: 0x5256, name: 'Exploit-Unrestricted'},
+
+    { vendorId: 0x054c, deviceId: 0x017f, name: 'Sony MZ-NH1' },
+    { vendorId: 0x054c, deviceId: 0x0181, name: 'Sony MZ-NH3D' },
+    { vendorId: 0x054c, deviceId: 0x0183, name: 'Sony MZ-NH900' },
+    { vendorId: 0x054c, deviceId: 0x0185, name: 'Sony MZ-NH700' },
+    { vendorId: 0x054c, deviceId: 0x0187, name: 'Sony MZ-NH600' },
+    { vendorId: 0x054c, deviceId: 0x018b, name: 'Sony LAM' },
+    { vendorId: 0x054c, deviceId: 0x01ea, name: 'Sony MZ-DH10P' },
+    { vendorId: 0x054c, deviceId: 0x021a, name: 'Sony MZ-RH10' },
+    { vendorId: 0x054c, deviceId: 0x021c, name: 'Sony MZ-RH910' },
+    { vendorId: 0x054c, deviceId: 0x022d, name: 'Sony CMT-AH10' },
+    { vendorId: 0x054c, deviceId: 0x023d, name: 'Sony DS-HMD1' },
+    { vendorId: 0x054c, deviceId: 0x0287, name: 'Sony MZ-RH1' },
+];
+
 export const DOSTIME_NULL = parseDOSTime(new Uint8Array(4).fill(0));
 
 export function parseDOSTime(raw: Uint8Array, offset: number = 0): DOSTime {
@@ -192,6 +209,10 @@ export class HiMD {
         await himd.loadTifdata();
         await himd.readDiscId();
         return himd;
+    }
+
+    public getDeviceName(){
+        return this.filesystem.getName();
     }
 
     protected async findDatanum() {

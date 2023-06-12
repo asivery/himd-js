@@ -53,6 +53,10 @@ export class NativeHiMDFilesystem extends HiMDFilesystem {
     async getTotalSpace(): Promise<number> {
         return Math.pow(10, 9);
     }
+
+    getName() {
+        return "Local Directory";
+    }
 }
 
 class NativeHiMDFile implements HiMDFile {
