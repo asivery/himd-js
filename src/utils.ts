@@ -28,6 +28,10 @@ export function assert(condition: boolean, message?: string) {
     throw new Error(`Assertion failed: ${message}`);
 }
 
+export function join(...paths: string[]){
+    return paths.join("/");
+}
+
 export function concatUint8Arrays(args: Uint8Array[]) {
     let totalLength = 0;
     for (let a of args) {

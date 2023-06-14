@@ -1,5 +1,5 @@
 import { HiMDError } from '../himd';
-import { join } from 'path';
+import { join } from '../utils';
 import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from './himd-filesystem';
 
 //HACK: This seems to be a very recent addition:

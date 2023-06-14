@@ -1,12 +1,10 @@
 import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from './himd-filesystem';
 import { USBMassStorageDriver } from 'node-mass-storage';
 import fatfs from 'fatfs';
-import { join } from 'path';
 import { HiMD, HiMDError, HiMDRawTrack, DevicesIds } from '../himd';
-import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32 } from '../utils';
+import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32, join } from '../utils';
 import { createIcvMac, createTrackKey, createTrackMac, decryptMaclistKey, encryptTrackKey, MAIN_KEY, retailMac } from '../encryption';
 import { Mutex } from 'async-mutex';
-import { WebUSBDevice } from 'usb';
 
 function assert(expr: boolean, message: string) {
     if (!expr) throw new Error(message);
@@ -333,7 +331,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
 
     cacheMutex = new Mutex();
 
-    constructor(protected usbDevice: WebUSBDevice) {
+    constructor(protected usbDevice: USBDevice) {
         super();
         this.driver = new SonyVendorUSMCDriver(this.usbDevice, 0x05);
     }

@@ -7,7 +7,7 @@ import { HiMDBlockStream, HiMDMP3Stream, HiMDNonMP3Stream, HiMDWriteStream } fro
 import { createTrackKey, getMP3EncryptionKey, initCrypto } from './encryption';
 import jconv from 'jconv';
 
-function encode(encoding: HiMDStringEncoding, content: string) {
+function encode(encoding: HiMDStringEncoding, content: string): Uint8Array | null {
     // iconv writes incorrect sjis
     if (encoding === HiMDStringEncoding.SHIFT_JIS) {
         return jconv.encode(content, 'sjis');
@@ -23,6 +23,25 @@ function encode(encoding: HiMDStringEncoding, content: string) {
     } catch (ex) {
         return null;
     }
+}
+
+function decode(encoding: HiMDStringEncoding, bfr: Buffer): string {
+    let str;
+    switch (encoding) {
+        case HiMDStringEncoding.LATIN1:
+            str = iconv.decode(bfr, 'latin1');
+            break;
+        case HiMDStringEncoding.SHIFT_JIS:
+            str = iconv.decode(bfr, 'sjis');
+            break;
+        case HiMDStringEncoding.UTF16BE:
+            str = iconv.decode(bfr, 'utf16-be');
+            break;
+        default:
+            throw new HiMDError(`Invalid encoding ${encoding}`);
+    }
+    if (str.includes('\x00')) str = str.substring(0, str.indexOf('\x00'));
+    return str;
 }
 
 export const HIMD_NO_GROUP: HiMDRawGroup = Object.freeze({
@@ -351,22 +370,7 @@ export class HiMD {
         const encoding = raw[0] as HiMDStringEncoding;
         const bfr = Buffer.from(raw.slice(1));
 
-        let str;
-        switch (encoding) {
-            case HiMDStringEncoding.LATIN1:
-                str = iconv.decode(bfr, 'latin1');
-                break;
-            case HiMDStringEncoding.SHIFT_JIS:
-                str = iconv.decode(bfr, 'sjis');
-                break;
-            case HiMDStringEncoding.UTF16BE:
-                str = iconv.decode(bfr, 'utf16-be');
-                break;
-            default:
-                throw new HiMDError(`Invalid encoding ${encoding}`);
-        }
-        if (str.includes('\x00')) str = str.substring(0, str.indexOf('\x00'));
-        return str;
+        return decode(encoding, bfr);
     }
 
     // IMPORTANT: Groups start with 1 - group 0 = disc title
@@ -528,37 +532,19 @@ export class HiMD {
     }
 
     @dirty addString(string: string, type: HiMDStringType): number {
-        let encodedText: Array<number> | null = null;
+        let encodedText: number[] | null = null;
 
-        const encodingOrder: [HiMDStringEncoding, [number, number][]][] = [
-            [HiMDStringEncoding.LATIN1, [[0x20, 0x7e]]],
-            [
-                HiMDStringEncoding.SHIFT_JIS,
-                [
-                    [0x20, 0x7e],
-                    [0x3040, 0x309f],
-                    [0x30a0, 0x30ff],
-                    [0x31f0, 0x31ff],
-                    [0xff61, 0xff9f],
-                    [0x4e00, 0x9ffc],
-                ],
-            ],
-            [HiMDStringEncoding.UTF16BE, [[0, Infinity]]],
-        ];
-
-        const stringAsNumbers = Array(string.length)
-            .fill(0)
-            .map((_, i) => string.charCodeAt(i));
-
-        for (let [format, ranges] of encodingOrder) {
-            if (ranges.some((range) => stringAsNumbers.every((char) => range[0] <= char && char <= range[1]))) {
-                let uEncodedText = encode(format, string);
-                encodedText = Array.from(uEncodedText!);
-                // Append the information about the encoding
-                encodedText.splice(0, 0, format);
+        const order = [HiMDStringEncoding.LATIN1, HiMDStringEncoding.SHIFT_JIS, HiMDStringEncoding.UTF16BE];
+        for(let entry of order){
+            const encoded = encode(entry, string);
+            if(!encoded) continue;
+            const decodedString = decode(entry, Buffer.from(encoded.buffer));
+            if(decodedString === string){
+                encodedText = [entry, ...encoded];
                 break;
             }
         }
+
         if (encodedText === null) throw new HiMDError('Cannot encode the string');
 
         // +13 for rounding up
