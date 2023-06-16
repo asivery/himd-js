@@ -95,7 +95,6 @@ export class HiMDNonMP3Stream {
             return null;
         }
         const { block, key, firstFrame, lastFrame } = result;
-        debugger;
         const decryptedBlock = await cryptoProvider.decryptor(
             this.masterKey,
             key,
