@@ -29,7 +29,7 @@ export function assert(condition: boolean, message?: string) {
 }
 
 export function join(...paths: string[]){
-    return paths.join("/");
+    return paths.join("/").replace(/\/*/, '/');
 }
 
 export function concatUint8Arrays(args: Uint8Array[]) {

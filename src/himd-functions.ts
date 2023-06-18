@@ -589,7 +589,7 @@ export async function uploadMacDependent(
     callback?.({ byte: 0, totalBytes: rawData.byteLength });
 
     while (currentInputByte < rawData.byteLength) {
-        let bytesInThisBlock = Math.min(HIMD_AUDIO_SIZE - 1, rawData.byteLength - currentInputByte);
+        let bytesInThisBlock = Math.min(HIMD_AUDIO_SIZE - (typeString === 'LPCM' ? 0 : 1), rawData.byteLength - currentInputByte);
         const framesInThisBlock = Math.floor(bytesInThisBlock / bytesPerFrame);
         if (framesInThisBlock === 0) break;
         bytesInThisBlock = framesInThisBlock * bytesPerFrame;
