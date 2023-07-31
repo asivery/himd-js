@@ -52,6 +52,8 @@ export class HiMDBlockStream {
             this.currentBlock++;
         }
 
+        lastFrame = Math.max(0, lastFrame);
+
         return { block, key, firstFrame, lastFrame };
     }
 }

@@ -62,7 +62,7 @@ if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScop
             const { trackKey, fragmentKey, blockKey, blockIv, plaintext } = params;
             postMessage(encryptBlock(trackKey, fragmentKey, blockKey, blockIv, plaintext));
         } else if (action === 'die') {
-            process.exit(0);
+            self.close();
         }
     };
 }
