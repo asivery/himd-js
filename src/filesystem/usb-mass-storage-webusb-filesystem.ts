@@ -1,5 +1,5 @@
 import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from './himd-filesystem';
-import { USBMassStorageDriver } from 'node-mass-storage';
+import { getBEUint32AsBytes, USBMassStorageDriver } from 'node-mass-storage';
 import fatfs from 'fatfs';
 import { HiMD, HiMDError, HiMDRawTrack, DevicesIds } from '../himd';
 import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32, join } from '../utils';
@@ -26,7 +26,7 @@ export class SonyVendorUSMCDriver extends USBMassStorageDriver {
     }
 
     async testUnitReady() {
-        await this._getStatus((await this.sendMassStorageInCommand(new Uint8Array(), 0x00, 0xc)).expectedTag);
+        return await this.sendCommandInGetResult(new Uint8Array(0xc).fill(0), 0x00, true);
     }
 
     async getTime() {
@@ -171,6 +171,33 @@ export class SonyVendorUSMCDriver extends USBMassStorageDriver {
         finalBuffer.set(mac, 16 + 8 + 2);
         this.inSession = false;
         await this.drmWrite(0x34, finalBuffer);
+    }
+
+    protected async himdDeviceControl(applicationId: 0 | 1 | 2, subcommand: number, flags: number, dataLength: number){
+        // TODO: Compare this command's sequence with the firmware.
+        const command = new Uint8Array([
+            0xc2, 0x00, applicationId, subcommand, flags, ...getBEUint32AsBytes(dataLength), 0, 0, 0
+        ]);
+        const res = await this.sendCommandInGetResult(command, dataLength, true, command.length);
+        await this.awaitSystemReady();
+        return res;
+    }
+
+    protected async awaitSystemReady(progressCallback?: (action: number, progress: number) => void){
+        let senseResult;
+        do{
+            senseResult = await this.getSense();
+            progressCallback?.(senseResult.result[15], (senseResult.result[16] << 8) | senseResult.result[17]);
+            await new Promise(res => setTimeout(res, 200));
+        }while(!senseResult.result.slice(15, 18).every(v => v === 0));
+    }
+
+    public async reformatHiMD(){
+        return await this.himdDeviceControl(0, 1, 0b011, 0);
+    }
+
+    public async wipe(){
+        return await this.himdDeviceControl(0, 0, 0b11, 0);
     }
 }
 
@@ -467,6 +494,14 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
             this.fatfs.stat(join(this.rootPath, path), (err: any, stats: any) => (err ? rej(err) : res(stats)))
         );
         return stats.size;
+    }
+
+    async wipeDisc(reinitializeHiMDFilesystem: boolean){
+        if(reinitializeHiMDFilesystem){
+            await this.driver.reformatHiMD();
+        }else{
+            await this.driver.wipe();
+        }
     }
 
     getName(){

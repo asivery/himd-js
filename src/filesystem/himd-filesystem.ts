@@ -33,6 +33,7 @@ export abstract class HiMDFilesystem {
     abstract rename(path: string, newPath: string): Promise<void>;
     abstract getSize(path: string): Promise<number>;
     abstract getTotalSpace(): Promise<number>;
+    abstract wipeDisc(reinitializeHiMDFilesystem: boolean): Promise<void>;
 }
 
 export interface HiMDFilesystemEntry {

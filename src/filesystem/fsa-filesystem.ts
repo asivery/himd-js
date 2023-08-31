@@ -63,6 +63,10 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
         return Math.pow(10, 9);
     }
 
+    async wipeDisc(): Promise<void> {
+        throw new HiMDError("Not supported");
+    }
+
     getName() {
         return "FSA";
     }
