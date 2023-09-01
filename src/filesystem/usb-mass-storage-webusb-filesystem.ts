@@ -348,6 +348,10 @@ export class UMSCHiMDSession {
 
 const FIRST_N_SECTORS_CACHED = 1000;
 
+const createLowSectorsCache = () => Array(FIRST_N_SECTORS_CACHED)
+    .fill(0)
+    .map(() => ({ dirty: false, data: null }));
+
 export class UMSCHiMDFilesystem extends HiMDFilesystem {
     fatfs: any;
     driver: SonyVendorUSMCDriver;
@@ -362,9 +366,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         super();
         this.driver = new SonyVendorUSMCDriver(this.usbDevice, 0x05);
     }
-    lowSectorsCache: { dirty: boolean; data: Uint8Array | null }[] = Array(FIRST_N_SECTORS_CACHED)
-        .fill(0)
-        .map(() => ({ dirty: false, data: null }));
+    lowSectorsCache: { dirty: boolean; data: Uint8Array | null }[] = createLowSectorsCache();
 
     async flushLowSectors() {
         const release = await this.cacheMutex.acquire();
@@ -375,9 +377,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
             }
             ++i;
         }
-        this.lowSectorsCache = Array(FIRST_N_SECTORS_CACHED)
-            .fill(0)
-            .map(() => ({ dirty: false, data: null }));
+        this.lowSectorsCache = createLowSectorsCache();
         release();
     }
 
@@ -502,6 +502,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         }else{
             await this.driver.wipe();
         }
+        this.lowSectorsCache = createLowSectorsCache();
     }
 
     getName(){
