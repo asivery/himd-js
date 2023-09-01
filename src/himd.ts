@@ -224,14 +224,25 @@ export class HiMD {
 
         const himd = new HiMD(filesystem);
 
-        await himd.findDatanum();
-        await himd.loadTifdata();
-        await himd.readDiscId();
+        await himd.reload();
+
         return himd;
+    }
+
+    public async reload(){
+        await this.findDatanum();
+        await this.loadTifdata();
+        await this.readDiscId();
     }
 
     public getDeviceName(){
         return this.filesystem.getName();
+    }
+
+    public async wipe(reinitializeFS: boolean = false){
+        await this.filesystem.wipeDisc(reinitializeFS);
+        await this.reload();
+        this.dirty = false;
     }
 
     protected async findDatanum() {

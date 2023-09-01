@@ -381,8 +381,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         release();
     }
 
-    async init() {
-        await this.driver.init();
+    protected async initFS(){
         const partInfo = await this.driver.getCapacity();
         this.fsUncachedDriver = await this.driver.createArbitraryFatFSVolumeDriver(
             { firstLBA: 0x0, sectorCount: partInfo.maxLba + 1 },
@@ -422,6 +421,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         };
         this.fatfs = fatfs.createFileSystem(this.fsDriver);
         this.volumeSize = partInfo.deviceSize;
+        this.lowSectorsCache = createLowSectorsCache();
+    }
+
+    async init() {
+        await this.driver.init();
+        await this.initFS();
     }
 
     async _list(path: string): Promise<HiMDFilesystemEntry[]> {
@@ -502,7 +507,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         }else{
             await this.driver.wipe();
         }
-        this.lowSectorsCache = createLowSectorsCache();
+        await this.initFS();
     }
 
     getName(){
