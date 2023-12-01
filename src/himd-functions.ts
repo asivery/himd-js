@@ -172,10 +172,9 @@ async function* dumpOMATrack(himd: HiMD, trackSlotNumber: number, externalDecryp
     while ((block = await nonMP3Stream.readBlock(externalDecryptor)) !== null) {
         yield { data: block.block, total };
     }
-    externalDecryptor?.close();
 }
 
-async function* dumpMP3Track(himd: HiMD, trackSlotNumber: number, externalDecryptor?: CryptoProvider): DumpingGenerator {
+async function* dumpMP3Track(himd: HiMD, trackSlotNumber: number): DumpingGenerator {
     const mp3Stream = await himd.openMP3Stream(trackSlotNumber);
     const rawTrack = himd.getTrack(trackSlotNumber);
     const getOrNone = (e: number) => (e === 0 ? undefined : himd.getString(e));
@@ -195,7 +194,6 @@ async function* dumpMP3Track(himd: HiMD, trackSlotNumber: number, externalDecryp
     while ((block = await mp3Stream.readBlock()) !== null) {
         yield { data: block.block, total };
     }
-    externalDecryptor?.close();
 }
 
 async function* dumpWAVTrack(himd: HiMD, trackSlotNumber: number, externalDecryptor?: CryptoProvider): DumpingGenerator {
@@ -215,7 +213,6 @@ async function* dumpWAVTrack(himd: HiMD, trackSlotNumber: number, externalDecryp
         }
         yield { data: blockContent.subarray(0, blockContent.length), total };
     }
-    externalDecryptor?.close();
 }
 
 export function dumpTrack(
@@ -229,7 +226,7 @@ export function dumpTrack(
         case 'AT3':
             return { format: 'OMA', data: dumpOMATrack(himd, trackSlotNumber, externalDecryptor) };
         case 'MP3':
-            return { format: 'MP3', data: dumpMP3Track(himd, trackSlotNumber, externalDecryptor) };
+            return { format: 'MP3', data: dumpMP3Track(himd, trackSlotNumber) };
         case 'PCM':
             return { format: 'WAV', data: dumpWAVTrack(himd, trackSlotNumber, externalDecryptor) };
     }
@@ -389,12 +386,6 @@ export async function uploadMP3Track(
             blockMpegPreemph = view.getUint8(frame.header._section.offset + 3) & 0x03;
         totalSamples += frame._section.sampleLength!;
         if (firstTime) {
-            // blockMpegVersion = mpegVers;
-            // blockMpegLayer = mpegLayer;
-            // blockMpegBitrate = mpegBitrate;
-            // blockMpegSampleRate = mpegSampleRate;
-            // blockMpegChannelMode = mpegChMode;
-            // blockMpegPreemph = mpegPreemph;
             mpegVers = blockMpegVersion;
             mpegLayer = blockMpegLayer;
             mpegBitrate = blockMpegBitrate;

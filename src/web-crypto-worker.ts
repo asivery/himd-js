@@ -1,7 +1,7 @@
 import { decryptBlock, encryptBlock, initCrypto } from './encryption';
 import { CryptoProvider } from './workers';
 
-export async function makeAsyncDecryptor(w: Worker): Promise<CryptoProvider> {
+export async function makeAsyncWorker(w: Worker): Promise<CryptoProvider> {
     await new Promise((res) => {
         w.postMessage({
             action: 'init',
