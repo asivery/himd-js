@@ -32,12 +32,12 @@
   "dependencies": {
     "@originjs/crypto-js-wasm": "github:asivery/crypto-js-wasm",
     "async-mutex": "^0.4.0",
-    "fatfs": "github:asivery/fatfs",
     "iconv-lite": "^0.6.3",
     "jconv": "^0.1.5",
     "mp3-parser": "^0.3.0",
     "node-id3": "^0.2.5",
-    "node-mass-storage": "^0.1.8",
+    "node-mass-storage": "^0.2.0",
+    "nufatfs": "^0.1.0",
     "usb": "^2.4.1"
   }
 }

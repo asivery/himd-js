@@ -1,6 +1,6 @@
 import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from './himd-filesystem';
 import { getBEUint32AsBytes, USBMassStorageDriver } from 'node-mass-storage';
-import fatfs from 'fatfs';
+import { CachedDirectory, FatFilesystem, FatFSFileHandle } from 'nufatfs';
 import { HiMD, HiMDError, HiMDRawTrack, DevicesIds } from '../himd';
 import { concatUint8Arrays, createRandomBytes, getUint32, setUint16, setUint32, join } from '../utils';
 import { createIcvMac, createTrackKey, createTrackMac, decryptMaclistKey, encryptTrackKey, MAIN_KEY, retailMac } from '../encryption';
@@ -353,12 +353,12 @@ const createLowSectorsCache = () => Array(FIRST_N_SECTORS_CACHED)
     .map(() => ({ dirty: false, data: null }));
 
 export class UMSCHiMDFilesystem extends HiMDFilesystem {
-    fatfs: any;
+    fatfs?: FatFilesystem;
     driver: SonyVendorUSMCDriver;
     rootPath = '/';
     volumeSize: number = 0;
-    fsDriver?: SonyVendorUSMCDriver['createArbitraryFatFSVolumeDriver'] extends (...args: any[]) => Promise<infer R> ? R : never;
-    fsUncachedDriver?: SonyVendorUSMCDriver['createArbitraryFatFSVolumeDriver'] extends (...args: any[]) => Promise<infer R> ? R : never;
+    fsDriver?: SonyVendorUSMCDriver['createArbitraryNUFatFSVolumeDriver'] extends (...args: any[]) => Promise<infer R> ? R : never;
+    fsUncachedDriver?: SonyVendorUSMCDriver['createArbitraryNUFatFSVolumeDriver'] extends (...args: any[]) => Promise<infer R> ? R : never;
 
     cacheMutex = new Mutex();
 
@@ -368,58 +368,15 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
     }
     lowSectorsCache: { dirty: boolean; data: Uint8Array | null }[] = createLowSectorsCache();
 
-    async flushLowSectors() {
-        const release = await this.cacheMutex.acquire();
-        let i = 0;
-        for (let entry of this.lowSectorsCache) {
-            if (entry.dirty && entry.data) {
-                await new Promise((res) => this.fsUncachedDriver!.writeSectors!(i, entry.data!, res));
-            }
-            ++i;
-        }
-        this.lowSectorsCache = createLowSectorsCache();
-        release();
-    }
-
     protected async initFS(){
         const partInfo = await this.driver.getCapacity();
-        this.fsUncachedDriver = await this.driver.createArbitraryFatFSVolumeDriver(
+        this.fsUncachedDriver = await this.driver.createArbitraryNUFatFSVolumeDriver(
             { firstLBA: 0x0, sectorCount: partInfo.maxLba + 1 },
             partInfo.blockSize,
             true
         );
 
-        this.fsDriver = {
-            ...this.fsUncachedDriver,
-            readSectors: async (i, dest, cb) => {
-                const release = await this.cacheMutex.acquire();
-                if (i >= FIRST_N_SECTORS_CACHED) {
-                    release();
-                    this.fsUncachedDriver!.readSectors(i, dest, cb);
-                } else if (this.lowSectorsCache[i].data !== null) {
-                    this.lowSectorsCache[i].data!.forEach((v, i) => (dest[i] = v));
-                    release();
-                    cb(null);
-                } else {
-                    await new Promise((res) => this.fsUncachedDriver!.readSectors(i, dest, res));
-                    this.lowSectorsCache[i].data = new Uint8Array([...dest]);
-                    release();
-                    cb(null);
-                }
-            },
-            writeSectors: async (i, data, cb) => {
-                if (i >= FIRST_N_SECTORS_CACHED) {
-                    this.fsUncachedDriver!.writeSectors!(i, data, cb);
-                } else {
-                    const release = await this.cacheMutex.acquire();
-                    this.lowSectorsCache[i].data = new Uint8Array([...data]);
-                    this.lowSectorsCache[i].dirty = true;
-                    release();
-                    cb(null);
-                }
-            },
-        };
-        this.fatfs = fatfs.createFileSystem(this.fsDriver);
+        this.fatfs = await FatFilesystem.create(this.fsUncachedDriver);
         this.volumeSize = partInfo.deviceSize;
         this.lowSectorsCache = createLowSectorsCache();
     }
@@ -429,23 +386,22 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         await this.initFS();
     }
 
+    async list(path: string): Promise<HiMDFilesystemEntry[]> {
+        return this._list(path);
+    }
+
     async _list(path: string): Promise<HiMDFilesystemEntry[]> {
-        const dirContents = await new Promise<string[]>((res, rej) =>
-            this.fatfs.readdir(join(this.rootPath, path), (err: any, files: string[]) => (err ? rej(err) : res(files)))
-        );
+        const dirContents = await this.fatfs!.listDir(join(this.rootPath, path));
+        if(!dirContents) return [];
         const ret: HiMDFilesystemEntry[] = [];
         for (let f of dirContents) {
             let name: string = join(path, f),
                 type: 'directory' | 'file';
-            try {
-                const stats = await new Promise<any>((res, rej) =>
-                    this.fatfs.stat(join(this.rootPath, path, f), (err: any, stats: any) => (err ? rej(err) : res(stats)))
-                );
-                type = stats.isDirectory() ? 'directory' : 'file';
-            } catch (ex: any) {
-                if (ex.code === 'ISDIR') {
-                    type = 'directory';
-                } else throw ex;
+            if(f.endsWith("/")){
+                name = name.substring(0, name.length - 1);
+                type = 'directory';
+            }else{
+                type = 'file';
             }
 
             ret.push({ name, type });
@@ -458,36 +414,15 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         filePath = await this.transformToValidCase(filePath);
 
         const path = join(this.rootPath, filePath);
-        const stat = await new Promise<any>((res, rej) => this.fatfs.stat(path, (err: any, stat: any) => (err ? rej(err) : res(stat))));
-        if (stat.size === 0 && stat.firstCluster === 0 && mode === 'rw') {
-            // This is an unallocated file.
-            // Make fatfs reallocate it
-            await new Promise<any>((res) => this.fatfs.reallocateAnew(path, res));
-
-            this.fatfs = fatfs.createFileSystem(this.fsDriver);
-        }
-        const fd = await new Promise<number>((res, rej) =>
-            this.fatfs.open(path, mode == 'ro' ? 'r' : 'r+', (err: any, fd: number) => (err ? rej(err) : res(fd)))
-        );
-        return new UMSCHiMDFile(this, mode === 'rw', fd, stat.size);
+        const handle = await this.fatfs!.open(path, mode === 'rw');
+        if(!handle) throw new Error("Cannot open file " + path);
+        
+        return new UMSCHiMDFile(this, mode === 'rw', handle);
     }
 
     async rename(path: string, newPath: string) {
-        const exists = await new Promise((res) => {
-            this.fatfs.stat(newPath, (err: any, stat: any) => {
-                if (err) return res(false);
-                res(stat.isFile());
-            });
-        });
-        if (exists) {
-            const newName =
-                Array(8)
-                    .fill(0)
-                    .map(() => String.fromCharCode(Math.floor(Math.random() * (90 - 65) + 65)))
-                    .join('') + '.WMD';
-            await new Promise((res) => this.fatfs.rename(newPath, newName, res));
-        }
-        await new Promise((res) => this.fatfs.rename(path, newPath.substring(newPath.lastIndexOf('/') + 1), res));
+        await this.fatfs!.rename(path, newPath);
+        await this.fatfs!.flushMetadataChanges();
     }
 
     async getTotalSpace() {
@@ -495,10 +430,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
     }
 
     async getSize(path: string) {
-        const stats = await new Promise<any>((res, rej) =>
-            this.fatfs.stat(join(this.rootPath, path), (err: any, stats: any) => (err ? rej(err) : res(stats)))
-        );
-        return stats.size;
+        return (await this.fatfs!.getSizeOf(path))!;
     }
 
     async wipeDisc(reinitializeHiMDFilesystem: boolean){
@@ -520,34 +452,29 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
 class UMSCHiMDFile implements HiMDFile {
     offset = 0;
 
-    constructor(private parent: UMSCHiMDFilesystem, private writable: boolean, private fd: number, public length: number) {}
+    public get length(){
+        return this.handle.length;
+    }
+
+    public set length(e: number){
+        throw new HiMDError("Cannot set length of file!")
+    }
+
+    constructor(private parent: UMSCHiMDFilesystem, private writable: boolean, private handle: FatFSFileHandle) {}
     seek(offset: number): Promise<void> {
         this.offset = offset;
+        this.handle.seek(offset);
         return Promise.resolve();
     }
     read(length: number = this.length - this.offset): Promise<Uint8Array> {
-        return new Promise((res, rej) => {
-            const buffer = Buffer.alloc(length);
-            this.parent.fatfs.read(this.fd, buffer, 0, length, this.offset, (err: any, read: number, bfr: Uint8Array) => {
-                this.offset += read;
-                if (err) rej(err);
-                else res(bfr);
-            });
-        });
+        return this.handle.read(length);
     }
     write(data: Uint8Array): Promise<void> {
         if (!this.writable) throw new HiMDError('Cannot write to a read-only opened file');
-        return new Promise((res, rej) =>
-            this.parent.fatfs.write(this.fd, Buffer.from(data), 0, data.length, this.offset, (err: any, written: number, buffer: any) => {
-                if (err) return rej(err);
-                this.offset += written;
-                this.length = Math.max(this.offset, this.length);
-                res();
-            })
-        );
+        return this.handle.write!(data);
     }
     async close(): Promise<void> {
-        await new Promise((res) => this.parent.fatfs.close(this.fd, res));
-        await this.parent.flushLowSectors();
+        await this.handle.close();
+        await this.parent.fatfs!.flushMetadataChanges();
     }
 }

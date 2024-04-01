@@ -259,8 +259,8 @@ export class HiMD {
         this.datanum = maxDatanum;
     }
 
-    protected getDatanumDependentName(name: string, datanum = this.datanum!) {
-        return `/hmdhifi/${name}${datanum.toString(16).padStart(2, '0')}.hma`;
+    public getDatanumDependentName(name: string, datanum = this.datanum!) {
+        return `/HMDHIFI/${name}${datanum.toString(16).padStart(2, '0').toUpperCase()}.HMA`;
     }
 
     protected async openDatanumDependent(name: string, mode?: 'rw' | 'ro') {
@@ -643,7 +643,7 @@ export class HiMD {
 
     async advanceGeneration(newGeneration: number) {
         let newDataNum = newGeneration % 16;
-        for (let e of ['atdata', 'mclist', 'trkidx']) {
+        for (let e of ['ATDATA', 'MCLIST', 'TRKIDX']) {
             await this.filesystem.rename(this.getDatanumDependentName(e, this.datanum!), this.getDatanumDependentName(e, newDataNum));
         }
         this.datanum = newDataNum;
