@@ -6,6 +6,7 @@ import { HiMDFile, HiMDFilesystem, HiMDFilesystemEntry } from './himd-filesystem
 type FileSystemWritableFileStream = any;
 
 export class FSAHiMDFilesystem extends HiMDFilesystem {
+    freeFileRegions = undefined;
     protected constructor(protected rootDirectoryHandle: FileSystemDirectoryHandle) {
         super();
     }

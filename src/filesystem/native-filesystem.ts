@@ -4,6 +4,7 @@ import { join } from 'path';
 import { HiMDError } from '../himd';
 
 export class NativeHiMDFilesystem extends HiMDFilesystem {
+    freeFileRegions = undefined;
     constructor(protected rootPath: string) {
         super();
     }

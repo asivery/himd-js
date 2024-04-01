@@ -442,6 +442,44 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         await this.initFS();
     }
 
+    async freeFileRegions(filePath: string, regions: { startByte: number, length: number }[]){
+        const tree = await this.fatfs!.getUnderlying().traverseEntries(filePath);
+        if(!tree) throw new HiMDError("Illegal request to free regions of a non-existent file!");
+        const [parent, entry] = tree.slice(-2);
+        if(!entry || (entry instanceof CachedDirectory)) {
+            throw new HiMDError("Illegal request to free regions of a non-file!");
+        }
+        const clusterChain = this.fatfs!.getUnderlying().getClusterChainFromFAT(entry.firstClusterAddressLow | (entry.firstClusterAddressHigh << 16));
+        const clusterSize = this.fatfs!.getUnderlying().clusterSizeInBytes;
+        // Sort from highest to lowest
+        regions.sort((a, b) => b.startByte - a.startByte);
+        const oldInitial = clusterChain[0];
+        let totalBytesFreed = 0;
+        for(const { startByte, length } of regions){
+            if(
+                ((startByte % clusterSize) !== 0) ||
+                ((length % clusterSize) !== 0)
+            ) {
+                throw new HiMDError(`Illegal request to free non-aligned parts of file (@${startByte}->${startByte + length})`);
+            }
+            const startCluster = startByte / clusterSize;
+            const clusterCount = length / clusterSize;
+            totalBytesFreed += length;
+
+            if(startCluster + clusterCount > clusterChain.length) {
+                throw new HiMDError("Illegal request to free parts of file outside of the file's boundaries!");
+            }
+
+            clusterChain.splice(startCluster, clusterCount);
+        }
+        this.fatfs!.getUnderlying().redefineClusterChain(oldInitial, clusterChain);
+        entry.fileSize -= totalBytesFreed;
+        entry.firstClusterAddressHigh = (clusterChain[0] & 0xFFFF0000) >> 16;
+        entry.firstClusterAddressLow = clusterChain[0] & 0xFFFF;
+        this.fatfs!.getUnderlying().markAsAltered(parent as CachedDirectory);
+        await this.fatfs!.flushMetadataChanges();
+    }
+
     getName(){
         let { vendorId, productId } = this.usbDevice;
         let deviceId = DevicesIds.find(device => device.deviceId === productId && device.vendorId === vendorId);

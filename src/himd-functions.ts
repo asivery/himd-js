@@ -667,3 +667,88 @@ export async function uploadMacDependent(
 
     await himd.flush();
 }
+
+export async function deleteTracks(himd: HiMD, tracksToDelete: number[]) {
+    // AFTER INVOKING THIS THE MACLIST NEEDS TO BE UPDATED AND RESIGNED!
+    /*
+        const session = new UMSCHiMDSession(this.fsDriver!.driver, this.himd!);
+        await session.performAuthentication();
+        for(let trackSlot of allTrackSlots) {
+            session.allMacs!.set(new Uint8Array(8).fill(0), (trackSlot - 1) * 8);
+        }
+        await session.finalizeSession();
+    */
+
+    if(!himd.filesystem.freeFileRegions) {
+        throw new HiMDError("Track deletion is not supported by this driver.");
+    }
+
+    const blocksToFree: { firstBlock: number, length: number }[] = [];
+    tracksToDelete.sort((a, b) => b - a);
+    for(let trackListIndex of tracksToDelete){
+        const trackIndex = himd.trackIndexToTrackSlot(trackListIndex);
+        const track = himd.getTrack(trackIndex);
+        let fragment = track.firstFragment;
+        const fragmentChain: HiMDFragment[] = [];
+        // Traverse the fragment chain, and delete each one
+        while(fragment !== 0) {
+            const fragmentObject = himd.getFragment(fragment);
+            fragmentChain.push(fragmentObject);
+            const block = {
+                firstBlock: fragmentObject.firstBlock,
+                length: fragmentObject.lastBlock - fragmentObject.firstBlock + 1,
+            };
+
+            // Block is 16kBytes
+            // Cluster is 32kBytes.
+            // One or two blocks can't be freed... max 32k lost lost per track
+
+            if((block.firstBlock % 2) === 1) {
+                block.firstBlock++;
+                block.length--;
+            }
+            if((block.length % 2) === 1) {
+                block.length--;
+            }
+            blocksToFree.push(block);
+            const nextFragment = fragmentObject.nextFragment;
+            himd.removeFragment(fragment);
+            fragment = nextFragment;
+        }
+        // Delete the track
+        if(track.albumIndex) himd.removeString(track.albumIndex);
+        if(track.artistIndex) himd.removeString(track.artistIndex);
+        if(track.titleIndex) himd.removeString(track.titleIndex);
+        himd.removeTrack(trackIndex);
+        // Update the track index => track slot table
+        for(let i = trackListIndex; i < himd.getTrackCount()-1; i++){
+            himd.writeTrackIndexToTrackSlot(i, himd.trackIndexToTrackSlot(i + 1));
+        }
+        himd.writeTrackIndexToTrackSlot(himd.getTrackCount() - 1, 0);
+        himd.writeTrackCount(himd.getTrackCount() - 1);
+    }
+    
+    
+    // Traverse all other tracks, to update the block positions.
+    for(let i = 0; i<himd.getTrackCount(); i++) {
+        let frag = himd.getTrack(himd.trackIndexToTrackSlot(i)).firstFragment;
+        while(frag !== 0) {
+            let fragObject = himd.getFragment(frag);
+            let anyHit = false;
+            for(let { firstBlock: firstBlockToFree, length: lengthToFree } of blocksToFree){
+                if(fragObject.firstBlock > firstBlockToFree){
+                    fragObject.firstBlock -= lengthToFree;
+                    fragObject.lastBlock -= lengthToFree;
+                    anyHit = true;
+                }
+            }
+            if(anyHit){
+                himd.writeFragment(frag, fragObject);
+            }
+            frag = fragObject.nextFragment;
+        }
+    }
+
+    await himd.filesystem.freeFileRegions(himd.getDatanumDependentName("ATDATA"), blocksToFree.map(e => ({startByte: e.firstBlock * BLOCK_SIZE, length: e.length * BLOCK_SIZE})));
+    await himd.flush();
+}
