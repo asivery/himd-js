@@ -19,6 +19,10 @@ function arrayEq<T>(a: ArrayLike<T>, b: ArrayLike<T>) {
 }
 
 export class SonyVendorUSMCDriver extends USBMassStorageDriver {
+    isDeviceConnected(device: USBDevice) {
+        return this.usbDevice === device;
+    }
+
     async preventAllowMediumRemoval(status: 'prevent' | 'allow') {
         const command = new Uint8Array([0x1e, 0x0, 0x0, 0x0, status === 'prevent' ? 0xff : 0x0]);
         const result = await this.sendMassStorageInCommand(command, 0, 0xc);
