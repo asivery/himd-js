@@ -310,14 +310,13 @@ export class HiMD {
 
     @dirty removeFragment(fragmentIndex: number) {
         const freelistFragment = this.getFragment(0);
-        const fragmentToFree = this.getFragment(fragmentIndex);
-        fragmentToFree.nextFragment = freelistFragment.nextFragment;
+        const nextFragmentInFreelist = freelistFragment.nextFragment;
         freelistFragment.nextFragment = fragmentIndex;
         this.writeFragment(0, freelistFragment);
         // The fragment needs to be completely zeroed out, otherwise HiMD device crashes with 'CAN'T PLAY'
         const raw = this.getSubarray(0x30000 + 0x10 * fragmentIndex, 0x10);
         raw.fill(0);
-        setUint16(raw, fragmentToFree.nextFragment & 0xfff, 14);
+        setUint16(raw, nextFragmentInFreelist & 0xfff, 14);
     }
 
     @dirty writeFragment(index: number, fragment: HiMDFragment) {
@@ -471,14 +470,13 @@ export class HiMD {
 
     @dirty removeTrack(trackIndex: number) {
         const freelistTrack = this.getTrack(0);
-        const trackToFree = this.getTrack(trackIndex);
-        trackToFree.trackNumber = freelistTrack.trackNumber;
+        const nextTrackInFreelist = freelistTrack.trackNumber;
         freelistTrack.trackNumber = trackIndex;
         this.writeTrack(0, freelistTrack);
         // The track needs to be completely zeroed out, otherwise HiMD device crashes with 'CAN'T PLAY'
         const rawBuffer = this.getSubarray(0x8000 + 0x50 * trackIndex, 0x50);
         rawBuffer.fill(0);
-        setUint16(rawBuffer, trackToFree.firstFragment, 38);
+        setUint16(rawBuffer, nextTrackInFreelist, 38);
     }
 
     @dirty writeTrack(trackSlotIndex: number, track: HiMDRawTrack, writeTo?: Uint8Array) {
