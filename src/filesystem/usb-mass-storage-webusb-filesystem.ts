@@ -7,6 +7,10 @@ import { Mutex } from 'async-mutex';
 import { SCSISessionDriver } from '../secure-session';
 
 export class SonyVendorUSMCDriver extends USBMassStorageDriver implements SCSISessionDriver {
+    isDeviceConnected(device: USBDevice) {
+        return this.usbDevice === device;
+    }
+
     async preventAllowMediumRemoval(status: 'prevent' | 'allow') {
         const command = new Uint8Array([0x1e, 0x0, 0x0, 0x0, status === 'prevent' ? 0xff : 0x0]);
         const result = await this.sendMassStorageInCommand(command, 0, 0xc);
