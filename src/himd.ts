@@ -667,8 +667,19 @@ export class HiMD {
 
     async advanceGeneration(newGeneration: number) {
         let newDataNum = newGeneration % 16;
+        const existsFile = async (f: string) => (await this.filesystem.list("/HMDHIFI")).find(e => e.type === 'file' && e.name.toLowerCase() === f.toLowerCase());
         for (let e of ['ATDATA', 'MCLIST', 'TRKIDX']) {
-            await this.filesystem.rename(this.getDatanumDependentName(e, this.datanum!), this.getDatanumDependentName(e, newDataNum));
+            let newName = this.getDatanumDependentName(e, newDataNum);
+            if(await existsFile(newName)){
+                let n = 0;
+                let newNameForOldFile;
+                do{
+                    newNameForOldFile = '/HMDHIFI/' + n.toString().padStart(8, '0') + '.HJS';
+                    n++;
+                }while(await existsFile(newNameForOldFile));
+                await this.filesystem.rename(newName, newNameForOldFile);
+            }
+            await this.filesystem.rename(this.getDatanumDependentName(e, this.datanum!), newName);
         }
         this.datanum = newDataNum;
     }
