@@ -6,7 +6,7 @@ import { BLOCK_SIZE, HiMDBlockStream, HiMDWriteStream, HIMD_AUDIO_SIZE } from '.
 import { create as createID3 } from 'node-id3';
 import { getMP3EncryptionKey } from './encryption';
 import { readTags, readFrame, FrameHeader, Header } from 'mp3-parser';
-import { UMSCHiMDSession } from './filesystem';
+import { HiMDSecureSession } from './secure-session';
 
 export interface HiMDTrack {
     index: number;
@@ -523,7 +523,7 @@ export async function uploadMP3Track(
 
 export async function uploadMacDependent(
     himd: HiMD,
-    session: UMSCHiMDSession,
+    session: HiMDSecureSession,
     writeStream: HiMDWriteStream,
     rawData: ArrayBuffer,
     codecInfo: CodecInfo,

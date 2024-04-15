@@ -4,3 +4,4 @@ export * from './himd-functions';
 export * from './debug';
 export * from './codecs';
 export * from './streams';
+export * from './secure-session';

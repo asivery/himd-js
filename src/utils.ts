@@ -28,6 +28,14 @@ export function assert(condition: boolean, message?: string) {
     throw new Error(`Assertion failed: ${message}`);
 }
 
+export function arrayEq<T>(a: ArrayLike<T>, b: ArrayLike<T>) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
 export function join(...paths: string[]){
     return paths.filter(e => e).join("/").replace(/\/*/, '/');
 }
