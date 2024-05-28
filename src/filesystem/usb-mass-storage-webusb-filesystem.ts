@@ -43,7 +43,7 @@ export class SonyVendorUSMCDriver extends USBMassStorageDriver {
         await this._getStatus(res.expectedTag);
     }
 
-    private async drmRead(param: number, length: number) {
+    protected async drmRead(param: number, length: number) {
         const command = new Uint8Array([
             0xa4,
             0x00,
@@ -66,7 +66,7 @@ export class SonyVendorUSMCDriver extends USBMassStorageDriver {
         return result.result.subarray(2); // FUN_000b152e defines constant prefix - length. Discard.
     }
 
-    private async drmWrite(param: number, data: Uint8Array) {
+    protected async drmWrite(param: number, data: Uint8Array) {
         const newData = new Uint8Array(data.length + 2);
         setUint16(newData, data.length, 0);
         newData.set(data, 2);
