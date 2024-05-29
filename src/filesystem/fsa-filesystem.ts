@@ -16,6 +16,7 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
         return new FSAHiMDFilesystem(handle);
     }
 
+    // TODO: Create file if nonexistent and mode === 'rw'
     async open(filePath: string, mode: 'ro' | 'rw' = 'ro') {
         const entry = await this.resolve(this.rootDirectoryHandle, await this.transformToValidCase(filePath));
         if (entry.kind === 'directory') throw new HiMDError('Cannot open directory as file');

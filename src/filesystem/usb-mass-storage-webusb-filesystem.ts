@@ -216,6 +216,8 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
     lowSectorsCache: { dirty: boolean; data: Uint8Array | null }[] = createLowSectorsCache();
 
     protected async initFS(bypassCoherencyChecks: boolean = false){
+        await this.driver.inquiry();
+        await this.driver.testUnitReady();
         const partInfo = await this.driver.getCapacity();
         this.fsUncachedDriver = await this.driver.createArbitraryNUFatFSVolumeDriver(
             { firstLBA: 0x0, sectorCount: partInfo.maxLba + 1 },
@@ -225,12 +227,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
 
         this.fatfs = await FatFilesystem.create(this.fsUncachedDriver, bypassCoherencyChecks);
         this.volumeSize = partInfo.deviceSize;
-        this.lowSectorsCache = createLowSectorsCache();
     }
 
     async init(bypassCoherencyChecks: boolean = false) {
         await this.driver.init();
         await this.initFS(bypassCoherencyChecks);
+        this.lowSectorsCache = createLowSectorsCache();
     }
 
     async list(path: string): Promise<HiMDFilesystemEntry[]> {
@@ -261,7 +263,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         filePath = await this.transformToValidCase(filePath);
 
         const path = join(this.rootPath, filePath);
-        const handle = await this.fatfs!.open(path, mode === 'rw');
+        let handle;
+        handle = await this.fatfs!.open(path, mode === 'rw');
+        if(!handle && mode === 'rw'){
+            // Does not exist
+            handle = await this.fatfs!.create(path);
+        }
         if(!handle) throw new Error("Cannot open file " + path);
         
         return new UMSCHiMDFile(this, mode === 'rw', handle);

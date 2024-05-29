@@ -36,7 +36,7 @@
     "jconv": "^0.1.5",
     "mp3-parser": "^0.3.0",
     "node-id3": "^0.2.5",
-    "node-mass-storage": "^0.2.0",
+    "node-mass-storage": "^0.2.1",
     "nufatfs": "^0.1.1",
     "usb": "^2.4.1"
   }

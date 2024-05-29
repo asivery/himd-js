@@ -15,8 +15,16 @@ export class NativeHiMDFilesystem extends HiMDFilesystem {
 
         return new Promise((res, rej) => {
             const path = join(this.rootPath, filePath);
-            const stat = fs.statSync(path);
-            const fd = fs.openSync(path, mode == 'ro' ? 'r' : 'r+');
+            let stat: { size: number };
+            let exists = true;
+            try{
+                stat = fs.statSync(path);
+            }catch(ex){
+                if(mode === 'ro') throw ex; // There's no saving it
+                stat = { size: 0 };
+                exists = false;
+            }
+            const fd = fs.openSync(path, exists ? (mode == 'ro' ? 'r' : 'r+') : 'w');
             res(new NativeHiMDFile(mode === 'rw', fd, stat.size));
         });
     }
