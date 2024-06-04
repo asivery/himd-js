@@ -73,6 +73,10 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
         throw new HiMDError("Not supported");
     }
 
+    async mkdir(filePath: string) {
+        throw new HiMDError("Not supported");
+    }
+
     getName() {
         return "FSA";
     }

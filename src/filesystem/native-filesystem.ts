@@ -71,6 +71,10 @@ export class NativeHiMDFilesystem extends HiMDFilesystem {
         return new Promise((res, rej) => fs.unlink(join(this.rootPath, filePath), (err) => err ? rej(err) : res()));
     }
 
+    async mkdir(filePath: string): Promise<void> {
+        return new Promise((res, rej) => fs.mkdir(join(this.rootPath, filePath), (err) => err ? rej(err) : res()));
+    }
+
     getName() {
         return "Local Directory";
     }
