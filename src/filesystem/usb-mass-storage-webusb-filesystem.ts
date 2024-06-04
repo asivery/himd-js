@@ -334,6 +334,10 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         await this.fatfs!.flushMetadataChanges();
     }
 
+    async delete(filePath: string): Promise<void> {
+        await this.fatfs!.delete(filePath);
+    }
+
     getName(){
         let { vendorId, productId } = this.usbDevice;
         let deviceId = DevicesIds.find(device => device.deviceId === productId && device.vendorId === vendorId);

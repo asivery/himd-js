@@ -35,6 +35,7 @@ export abstract class HiMDFilesystem {
     abstract getTotalSpace(): Promise<number>;
     abstract wipeDisc(reinitializeHiMDFilesystem: boolean): Promise<void>;
     abstract freeFileRegions?(filePath: string, regions: { startByte: number, length: number }[]): Promise<void>;
+    abstract delete(filePath: string): Promise<void>;
 }
 
 export interface HiMDFilesystemEntry {

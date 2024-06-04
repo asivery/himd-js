@@ -69,6 +69,10 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
         throw new HiMDError("Not supported");
     }
 
+    async delete(filePath: string) {
+        throw new HiMDError("Not supported");
+    }
+
     getName() {
         return "FSA";
     }

@@ -67,6 +67,10 @@ export class NativeHiMDFilesystem extends HiMDFilesystem {
         throw new HiMDError("Not supported");
     }
 
+    async delete(filePath: string): Promise<void> {
+        return new Promise((res, rej) => fs.unlink(join(this.rootPath, filePath), (err) => err ? rej(err) : res()));
+    }
+
     getName() {
         return "Local Directory";
     }
