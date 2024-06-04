@@ -345,6 +345,7 @@ export class HiMD {
     }
 
     getStringChunk(index: number): HiMDStringChunk {
+        assert(index >= 0 && index <= 4095);
         const rawBuffer = this.getSubarray(0x40000 + 0x10 * index, 0x10);
         const flags = getUint16(rawBuffer, 14);
 
@@ -358,12 +359,25 @@ export class HiMD {
     }
 
     @dirty writeStringChunk(index: number, chunk: HiMDStringChunk) {
+        assert(index >= 0 && index <= 4095);
         assert(chunk.content.length === 14, 'String chunk content must be equal to 14');
 
         const rawBuffer = this.getSubarray(0x40000 + 0x10 * index, 0x10);
         const flags = (chunk.link & 0xfff) | (chunk.type << 12);
         setUint16(rawBuffer, flags, 14);
         chunk.content.forEach((e, i) => (rawBuffer[i] = e));
+    }
+
+    countFreeStringChunks() {
+        let amt = 0;
+        let current = this.getStringChunk(0);
+
+        while(current.link !== 0) {
+            ++amt;
+            current = this.getStringChunk(current.link);
+        }
+        
+        return amt;
     }
 
     trackIndexToTrackSlot(index: number) {
