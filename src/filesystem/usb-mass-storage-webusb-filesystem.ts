@@ -284,7 +284,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
     }
 
     async getSize(path: string) {
-        return (await this.fatfs!.getSizeOf(path))!;
+        return (await this.fatfs!.getSizeOf(path));
     }
 
     async wipeDisc(reinitializeHiMDFilesystem: boolean){
@@ -336,10 +336,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
 
     async delete(filePath: string): Promise<void> {
         await this.fatfs!.delete(filePath);
+        await this.fatfs!.flushMetadataChanges();
     }
 
     async mkdir(filePath: string): Promise<void> {
         await this.fatfs!.mkdir(filePath);
+        await this.fatfs!.flushMetadataChanges();
     }
 
     getName(){

@@ -20,7 +20,7 @@ export abstract class HiMDFilesystem {
                 bytes += await this.getSizeOfDirectory(name);
             } else {
                 try {
-                    bytes += await this.getSize(name);
+                    bytes += (await this.getSize(name))!;
                 } catch (ex) {}
             }
         }
@@ -31,7 +31,7 @@ export abstract class HiMDFilesystem {
     abstract open(filePath: string, mode?: 'ro' | 'rw'): Promise<HiMDFile>;
     abstract _list(path: string): Promise<HiMDFilesystemEntry[]>;
     abstract rename(path: string, newPath: string): Promise<void>;
-    abstract getSize(path: string): Promise<number>;
+    abstract getSize(path: string): Promise<number | null>;
     abstract getTotalSpace(): Promise<number>;
     abstract wipeDisc(reinitializeHiMDFilesystem: boolean): Promise<void>;
     abstract freeFileRegions?(filePath: string, regions: { startByte: number, length: number }[]): Promise<void>;
