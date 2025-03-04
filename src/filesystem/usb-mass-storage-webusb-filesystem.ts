@@ -303,7 +303,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         if(!entry || (entry instanceof CachedDirectory)) {
             throw new HiMDError("Illegal request to free regions of a non-file!");
         }
-        const clusterChain = this.fatfs!.getUnderlying().getClusterChainFromFAT(entry.firstClusterAddressLow | (entry.firstClusterAddressHigh << 16));
+        const clusterChain = this.fatfs!.getUnderlying().getClusterChainFromFAT(entry._firstCluster);
         const clusterSize = this.fatfs!.getUnderlying().clusterSizeInBytes;
         // Sort from highest to lowest
         regions.sort((a, b) => b.startByte - a.startByte);
@@ -328,8 +328,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         }
         this.fatfs!.getUnderlying().redefineClusterChain(oldInitial, clusterChain);
         entry.fileSize -= totalBytesFreed;
-        entry.firstClusterAddressHigh = (clusterChain[0] & 0xFFFF0000) >> 16;
-        entry.firstClusterAddressLow = clusterChain[0] & 0xFFFF;
+        entry._firstCluster = clusterChain[0];
         this.fatfs!.getUnderlying().markAsAltered(parent as CachedDirectory);
         await this.fatfs!.flushMetadataChanges();
     }
@@ -363,10 +362,9 @@ class UMSCHiMDFile implements HiMDFile {
     }
 
     constructor(private parent: UMSCHiMDFilesystem, private writable: boolean, private handle: FatFSFileHandle) {}
-    seek(offset: number): Promise<void> {
+    async seek(offset: number): Promise<void> {
         this.offset = offset;
-        this.handle.seek(offset);
-        return Promise.resolve();
+        await this.handle.seek(offset);
     }
     read(length: number = this.length - this.offset): Promise<Uint8Array> {
         return this.handle.read(length);
