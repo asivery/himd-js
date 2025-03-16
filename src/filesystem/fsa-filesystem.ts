@@ -7,13 +7,25 @@ type FileSystemWritableFileStream = any;
 
 export class FSAHiMDFilesystem extends HiMDFilesystem {
     freeFileRegions = undefined;
+    // ShouldApplyHMDHifiFixup: If the user was to select the "HMDHifi" folder instead of the root, remove
+    // the folder's name from all the paths the application tries to resolve, to prevent erroring out.
+    protected shouldApplyHMDHifiFixup = false;
     protected constructor(protected rootDirectoryHandle: FileSystemDirectoryHandle) {
         super();
     }
 
-    static async init() {
+    static async init(shouldCheckForHiMDRoot: boolean = true, applyHMDHifiFixup: boolean = true) {
         const handle = await (globalThis as any).showDirectoryPicker();
-        return new FSAHiMDFilesystem(handle);
+        const instance = new FSAHiMDFilesystem(handle);
+        if(applyHMDHifiFixup) {
+            instance.shouldApplyHMDHifiFixup = handle.name.toLowerCase() === 'hmdhifi';
+        }
+
+        if(shouldCheckForHiMDRoot) {
+            // Error out if this is not a real HiMD filesystem:
+            await instance.resolve(handle, "/HMDHIFI/");
+        }
+        return instance;
     }
 
     // TODO: Create file if nonexistent and mode === 'rw'
@@ -37,10 +49,14 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     }
 
     private async resolve(root: FileSystemDirectoryHandle, path: string) {
+        if(this.shouldApplyHMDHifiFixup) {
+            path = path.split("/").filter(e => e.toLowerCase() !== "hmdhifi").join('/');
+        }
         let entry: FileSystemHandle = root;
         for (let pathElement of path.split('/')) {
             if (pathElement.length === 0) continue;
             entry = (await this.getFileListing(entry as FileSystemDirectoryHandle))[pathElement]!;
+            if(!entry) throw new HiMDError(`No such file or directory: ${path}`);
         }
         return entry;
     }
@@ -54,7 +70,7 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     }
 
     async rename(path: string, newPath: string) {
-        throw new Error('no');
+        throw new HiMDError('Not supported');
     }
 
     async getSize(path: string): Promise<number> {
