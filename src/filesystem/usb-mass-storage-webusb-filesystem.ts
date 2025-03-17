@@ -216,6 +216,7 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
     lowSectorsCache: { dirty: boolean; data: Uint8Array | null }[] = createLowSectorsCache();
 
     protected async initFS(bypassCoherencyChecks: boolean = false){
+        await this.driver.runBOMSR();
         await this.driver.inquiry();
         await this.driver.testUnitReady();
         const partInfo = await this.driver.getCapacity();
