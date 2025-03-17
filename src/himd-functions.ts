@@ -106,15 +106,26 @@ export function renameGroup(himd: HiMD, groupIndex: number, title: string | null
 }
 
 export function addGroup(himd: HiMD, title: string | null, start: number, length: number) {
+    // Groups are indexed from 1.
     const stringIndex = title === null ? 0 : himd.addString(title, HiMDStringType.GROUP);
-    const groupIndex = himd.getGroupCount();
+    let groupIndex;
+    for(groupIndex = 1; groupIndex < himd.getGroupCount() + 1; groupIndex++) {
+        if(himd.getGroup(groupIndex).startTrackIndex > start) {
+            // Break. This is the created group's index.
+            break;
+        }
+    }
+    // Shift the groups up.
+    for(let i = himd.getGroupCount() + 1; i > groupIndex; i--) {
+        himd.writeGroup(i, himd.getGroup(i - 1));
+    }
     const group: HiMDRawGroup = {
         startTrackIndex: start,
         endTrackIndex: start + length,
         titleIndex: stringIndex,
         groupIndex: groupIndex,
     };
-    himd.writeGroup(groupIndex + 1, group);
+    himd.writeGroup(groupIndex, group);
 }
 
 export function deleteGroup(himd: HiMD, index: number) {
