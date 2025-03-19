@@ -93,7 +93,7 @@ export class HiMDSecureSession {
         await mclistHandle.close();
     }
 
-    public async createNewTrack(track: HiMDRawTrack) {
+    public async createAndSignNewTrack(track: HiMDRawTrack) {
         const trackKey = createRandomBytes();
         const kek = encryptTrackKey(trackKey);
 
@@ -103,6 +103,8 @@ export class HiMDSecureSession {
         // Rewrite the parameters within the macfile
         const mac = this.createTrackMac(track, trackKey);
 
+        track.key = kek;
+        track.mac = mac;
         return { contentId: track.contentId, trackKey, kek, mac };
     }
 

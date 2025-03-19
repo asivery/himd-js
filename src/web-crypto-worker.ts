@@ -1,5 +1,6 @@
+import type { HiMDBlockInfo } from './himd';
 import { decryptBlock, encryptBlock, initCrypto } from './encryption';
-import { CryptoProvider } from './workers';
+import { CryptoBlockProvider, CryptoProvider, createHiMDBlockGenerator } from './workers';
 
 export async function makeAsyncWorker(w: Worker): Promise<CryptoProvider> {
     await new Promise((res) => {
@@ -48,10 +49,98 @@ export async function makeAsyncWorker(w: Worker): Promise<CryptoProvider> {
     };
 }
 
+// Based on netmd-js' implementation
+type InitArgument = (CryptoBlockProvider['process'] extends ((a: infer X) => any) ? X : never);
+export function makeAsyncCryptoBlockProvider(
+    w: Worker,
+): CryptoBlockProvider {
+    async function* provider(
+        params: InitArgument,
+        progressCallback?: (progress: { totalBytes: number; encryptedBytes: number }) => void
+    ): ReturnType<CryptoBlockProvider['process']> {
+        const initWorker = () =>
+            new Promise(res => {
+                const message: { action: 'queuedInit' } & InitArgument = {
+                    action: 'queuedInit',
+                    ...params,
+                };
+                w.postMessage(
+                    message,
+                    [params.rawData]
+                );
+                w.onmessage = res;
+            });
+
+        let resolver: (data: any) => void;
+
+        let encryptedBytes = 0;
+        let totalBytes = params.rawData.byteLength;
+        let chunks: Promise<{ block: HiMDBlockInfo, lastFrameInFragment: number } | null>[] = [];
+        const queueNextChunk = () => {
+            let chunkPromise = new Promise<{ block: HiMDBlockInfo, lastFrameInFragment: number } | null>(resolve => {
+                resolver = data => {
+                    if (data !== null) {
+                        encryptedBytes += data.block.audioData.byteLength;
+                        progressCallback && progressCallback({ totalBytes, encryptedBytes });
+                        queueNextChunk();
+                    }
+                    resolve(data);
+                };
+            });
+            chunks.push(chunkPromise);
+            w.postMessage({ action: 'next' });
+        };
+
+        await initWorker();
+        w.onmessage = msg => {
+            resolver(msg.data);
+        };
+
+        queueNextChunk();
+
+        let i = 0;
+        while (1) {
+            let r = await chunks[i];
+            delete chunks[i];
+            if (r === null) {
+                break;
+            }
+            yield r;
+            i++;
+        }
+    }
+
+    return {
+        close: () => w.postMessage({ action: 'die' }),
+        process: provider,
+    };
+}
+
+
 if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
     // Worker
+    let generator: AsyncIterableIterator<{ block: HiMDBlockInfo, lastFrameInFragment: number }> | null = null;
+    let cryptoInited = false;
     onmessage = async (msg) => {
         const { action, ...params } = msg.data;
+        // Queued API:
+
+        if (action === 'queuedInit') {
+            generator = createHiMDBlockGenerator(params as any);
+            if(!cryptoInited) {
+                await initCrypto();
+                cryptoInited = true;
+            }
+            postMessage({ queuedInit: true });
+        } else if(action === 'next') {
+            const { value, done } = await generator!.next();
+            if(done) {
+                postMessage(null);
+            } else {
+                postMessage(value, [value.block.audioData.buffer]);
+            }
+        }
+
         if (action === 'init') {
             await initCrypto();
             postMessage({ init: true });

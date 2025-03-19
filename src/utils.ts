@@ -1,4 +1,4 @@
-import { HiMDCodec } from './codecs';
+import type { HiMDCodec } from './codecs';
 
 export function getUint16(data: Uint8Array, offset: number = 0) {
     return (data[offset + 0] << 8) | data[offset + 1];

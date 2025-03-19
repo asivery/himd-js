@@ -1,7 +1,7 @@
 import { createEA3Header, createLPCMHeader, createRandomBytes, getUint32 } from './utils';
 import { CodecInfo, getBytesPerFrame, getCodecName, getKBPS, getSeconds, HiMDCodec, HiMDCodecName } from './codecs';
 import { HiMDBlockInfo, DOSTIME_NULL, HiMD, HiMDError, HiMDFragment, HiMDRawGroup, HiMDRawTrack, HiMDStringType } from './himd';
-import { CryptoProvider } from './workers';
+import { CryptoBlockProvider, CryptoProvider } from './workers';
 import { BLOCK_SIZE, HiMDBlockStream, HiMDWriteStream, HIMD_AUDIO_SIZE } from './streams';
 import { create as createID3 } from 'node-id3';
 import { getMP3EncryptionKey } from './encryption';
@@ -559,7 +559,7 @@ export async function uploadMacDependent(
 
     const slot = himd.getNextFreeTrackSlot();
 
-    const cryptoSignedData = await session.createNewTrack({
+    const trackData: HiMDRawTrack = {
         albumIndex: 0,
         artistIndex: 0,
         titleIndex: 0,
@@ -581,7 +581,10 @@ export async function uploadMacDependent(
         recordingTime: DOSTIME_NULL,
         trackInAlbum: 0,
         ...codecInfo,
-    });
+    };
+
+    const cryptoSignedData = await session.createAndSignNewTrack(trackData);
+
 
     const keyForFragment = createRandomBytes();
     writeStream.setKeys(cryptoSignedData.trackKey, keyForFragment);
@@ -641,19 +644,52 @@ export async function uploadMacDependent(
     const fragmentIndex = himd.addFragment(fragment);
 
     // Create a new track
-    let idxTitle = 0,
-        idxAlbum = 0,
-        idxArtist = 0;
-    if (title) idxTitle = himd.addString(title, HiMDStringType.TITLE);
-    if (album) idxAlbum = himd.addString(album, HiMDStringType.ALBUM);
-    if (artist) idxArtist = himd.addString(artist, HiMDStringType.ARTIST);
+    trackData.firstFragment = himd.addFragment(fragment);
 
-    const track: HiMDRawTrack = {
-        albumIndex: idxAlbum,
-        artistIndex: idxArtist,
-        titleIndex: idxTitle,
+    // Create a new track
+    if (title) trackData.titleIndex = himd.addString(title, HiMDStringType.TITLE);
+    if (album) trackData.albumIndex = himd.addString(album, HiMDStringType.ALBUM);
+    if (artist) trackData.artistIndex = himd.addString(artist, HiMDStringType.ARTIST);
+
+    const newTrackSlot = himd.addTrack(trackData);
+    himd.writeTrackIndexToTrackSlot(himd.getTrackCount(), newTrackSlot);
+    himd.writeTrackCount(himd.getTrackCount() + 1);
+
+    await himd.flush();
+}
+
+export async function uploadStreamingMacDependent(
+    himd: HiMD,
+    session: HiMDSecureSession,
+    writeStream: HiMDWriteStream,
+    rawData: ArrayBuffer,
+    codecInfo: CodecInfo,
+    { title, album, artist }: { title?: string; album?: string; artist?: string },
+    streamingCryptoProvider: CryptoBlockProvider,
+    encCallback?: (object: { totalBytes: number; encryptedBytes: number; }) => void,
+    writeCallback?: (object: { writtenBytes: number; totalBytes: number }) => void,
+) {
+    // Register one fragment, create a key for it
+    const bytesPerFrame = getBytesPerFrame(codecInfo);
+
+    const typeString = {
+        MP3: null,
+        AT3: 'A3D ',
+        'A3+': 'ATX ',
+        PCM: 'LPCM',
+    }[getCodecName(codecInfo)];
+    if (!typeString) throw new Error('MP3 audio cannot be uploaded as a Mac-Dependent audio file');
+    const type = new TextEncoder().encode(typeString);
+    const mCode = typeString === 'LPCM' ? 0x0124 : 3;
+
+    const slot = himd.getNextFreeTrackSlot();
+
+    const trackData: HiMDRawTrack = {
+        albumIndex: 0,
+        artistIndex: 0,
+        titleIndex: 0,
         trackNumber: slot,
-        firstFragment: fragmentIndex,
+        firstFragment: 0,
         ekbNumber: 0x00010012,
         cc: 68,
         cn: 0,
@@ -661,9 +697,9 @@ export async function uploadMacDependent(
         dest: 0,
         lt: 1,
         xcc: 1,
-        key: cryptoSignedData.kek,
-        mac: cryptoSignedData.mac,
-        contentId: cryptoSignedData.contentId,
+        key: new Uint8Array(),
+        mac: new Uint8Array(),
+        contentId: new Uint8Array(),
         licenseEndTime: DOSTIME_NULL,
         licenseStartTime: DOSTIME_NULL,
         seconds: getSeconds(codecInfo, Math.ceil(rawData.byteLength / bytesPerFrame)),
@@ -672,7 +708,55 @@ export async function uploadMacDependent(
         ...codecInfo,
     };
 
-    const newTrackSlot = himd.addTrack(track);
+    const cryptoSignedData = await session.createAndSignNewTrack(trackData);
+
+    const keyForFragment = createRandomBytes();
+    writeStream.setKeys(cryptoSignedData.trackKey, keyForFragment);
+
+    let lastFrameInFragment = 0;
+
+    writeCallback?.({ writtenBytes: 0, totalBytes: rawData.byteLength });
+
+    const generator = streamingCryptoProvider.process({
+        rawData,
+        bytesPerFrame,
+        fragmentKey: keyForFragment,
+        lo32ContentId: getUint32(cryptoSignedData.contentId, 16),
+        maxBytesInBlock: HIMD_AUDIO_SIZE - (typeString === 'LPCM' ? 0 : 1),
+        mCode,
+        trackKey: cryptoSignedData.trackKey,
+        type
+    }, encCallback);
+
+    let bytes = 0;
+    for await(let { block, lastFrameInFragment: _lastFrameInFragment } of generator) {
+        lastFrameInFragment = _lastFrameInFragment;
+        await writeStream.writeAudioBlock(block);
+        bytes += block.audioData.length;
+        writeCallback?.({ writtenBytes: bytes, totalBytes: rawData.byteLength });
+    }
+
+    const { firstBlock, lastBlock } = await writeStream.close();
+
+    // Create a new fragment
+    const fragment: HiMDFragment = {
+        firstBlock,
+        lastBlock,
+        key: keyForFragment,
+        nextFragment: 0,
+        fragmentType: 0,
+        firstFrame: 0,
+        lastFrame: Math.max(0, lastFrameInFragment),
+    };
+
+    trackData.firstFragment = himd.addFragment(fragment);
+
+    // Create a new track
+    if (title) trackData.titleIndex = himd.addString(title, HiMDStringType.TITLE);
+    if (album) trackData.albumIndex = himd.addString(album, HiMDStringType.ALBUM);
+    if (artist) trackData.artistIndex = himd.addString(artist, HiMDStringType.ARTIST);
+
+    const newTrackSlot = himd.addTrack(trackData);
     himd.writeTrackIndexToTrackSlot(himd.getTrackCount(), newTrackSlot);
     himd.writeTrackCount(himd.getTrackCount() + 1);
 
@@ -738,8 +822,7 @@ export async function deleteTracks(himd: HiMD, tracksToDelete: number[]) {
         himd.writeTrackIndexToTrackSlot(himd.getTrackCount() - 1, 0);
         himd.writeTrackCount(himd.getTrackCount() - 1);
     }
-    
-    
+
     // Traverse all other tracks, to update the block positions.
     for(let i = 0; i<himd.getTrackCount(); i++) {
         let frag = himd.getTrack(himd.trackIndexToTrackSlot(i)).firstFragment;
