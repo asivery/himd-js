@@ -69,7 +69,7 @@ export function makeAsyncCryptoBlockProvider(
                     message,
                     [params.rawData]
                 );
-                w.on('message', res);
+                w.once('message', res);
             });
 
         let resolver: (data: any) => void;
