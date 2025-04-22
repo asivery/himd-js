@@ -93,10 +93,11 @@ export function makeAsyncCryptoBlockProvider(
         };
 
         await initWorker();
-        w.on('message', msg => {
+        function handler(msg: any){
             resolver(msg);
-        });
+        }
 
+        w.on('message', handler);
         queueNextChunk();
 
         let i = 0;
@@ -109,6 +110,8 @@ export function makeAsyncCryptoBlockProvider(
             yield r;
             i++;
         }
+
+        w.off('message', handler);
     }
 
     return {
