@@ -27,6 +27,13 @@ export abstract class HiMDFilesystem {
         return bytes;
     }
 
+    async statFilesystem(): Promise<{used: number, total: number, left: number}> {
+        // Default implementation.
+        const totalSpaceTaken = (await this.getSizeOfDirectory('/'));
+        const totalVolumeSize = (await this.getTotalSpace());
+        return { total: totalVolumeSize, used: totalSpaceTaken, left: totalVolumeSize - totalSpaceTaken };
+    }
+
     abstract getName(): string;
     abstract open(filePath: string, mode?: 'ro' | 'rw'): Promise<HiMDFile>;
     abstract _list(path: string): Promise<HiMDFilesystemEntry[]>;

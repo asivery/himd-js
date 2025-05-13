@@ -344,6 +344,12 @@ export class UMSCHiMDFilesystem extends HiMDFilesystem {
         await this.fatfs!.flushMetadataChanges();
     }
 
+    async statFilesystem(): Promise<{ used: number; total: number; left: number; }> {
+        // Get low-level values, including filesystem structures' sizes.
+        const stats = this.fatfs!.getStats();
+        return { used: stats.totalBytes - stats.freeBytes, left: stats.freeBytes, total: stats.totalBytes };
+    }
+
     getName(){
         let { vendorId, productId } = this.usbDevice;
         let deviceId = DevicesIds.find(device => device.deviceId === productId && device.vendorId === vendorId);
