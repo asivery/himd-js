@@ -1,6 +1,6 @@
 {
   "name": "himd-js",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "A library which lets you manage tracks and metadata on HiMD discs.",
   "main": "dist/index.js",
   "scripts": {
