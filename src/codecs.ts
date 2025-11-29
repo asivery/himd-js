@@ -107,7 +107,10 @@ export function getKBPS(ci: CodecInfo): number {
         if ((codecInfo[3] & 0xc0) === 0x40 || (codecInfo[3] & 0x30) === 0) return 0;
         return map[1 - ((codecInfo[3] & 0x40) >> 6)][3 - ((codecInfo[3] & 0x30) >> 4)][codecInfo[3] & 0xf];
     } else {
-        return Math.floor((getBytesPerFrame(ci) * getSampleRate(ci)) / (125 * getSamplesPerFrame(ci)));
+        let value = Math.floor((getBytesPerFrame(ci) * getSampleRate(ci)) / (125 * getSamplesPerFrame(ci)));
+        // Rounding error for 105kbps
+        if(value === 104) value = 105;
+        return value;
     }
 }
 
