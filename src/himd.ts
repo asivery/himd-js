@@ -108,6 +108,7 @@ export const DevicesIds: { vendorId: number, deviceId: number, name: string }[] 
     { vendorId: 0x054c, deviceId: 0x022d, name: 'Sony CMT-AH10' },
     { vendorId: 0x054c, deviceId: 0x023d, name: 'Sony DS-HMD1' },
     { vendorId: 0x054c, deviceId: 0x0287, name: 'Sony MZ-RH1' },
+    { vendorId: 0x0411, deviceId: 0x007f, name: 'Buffalo MD-HUSB' },
 ];
 
 export const DOSTIME_NULL = parseDOSTime(new Uint8Array(4).fill(0));
