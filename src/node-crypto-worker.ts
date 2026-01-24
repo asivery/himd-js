@@ -142,7 +142,7 @@ if (isMainThread) {
             if(done) {
                 parentPort!.postMessage(null);
             } else {
-                parentPort!.postMessage(value, [value.block.audioData.buffer]);
+                parentPort!.postMessage(value, [value.block.audioData.buffer as ArrayBuffer]);
             }
         }
 
