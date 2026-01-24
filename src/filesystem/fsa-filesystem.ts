@@ -15,7 +15,7 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     }
 
     static async init(shouldCheckForHiMDRoot: boolean = true, applyHMDHifiFixup: boolean = true) {
-        const handle = await (globalThis as any).showDirectoryPicker();
+        const handle = await (globalThis as any).showDirectoryPicker({ mode: 'readwrite' });
         const instance = new FSAHiMDFilesystem(handle);
         if(applyHMDHifiFixup) {
             instance.shouldApplyHMDHifiFixup = handle.name.toLowerCase() === 'hmdhifi';
