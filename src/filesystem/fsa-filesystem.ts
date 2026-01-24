@@ -100,7 +100,12 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     }
 
     async delete(filePath: string) {
-        throw new HiMDError("Not supported");
+        const lastPathSep = filePath.lastIndexOf('/');
+        const parentPath = filePath.substring(0, lastPathSep);
+        const name = filePath.substring(lastPathSep + 1);
+        const parent = await this.resolve(this.rootDirectoryHandle, await this.transformToValidCase(parentPath)) as FileSystemDirectoryHandle;
+        if(parent.kind !== 'directory') throw new Error("Cannot delete a file from within another file!");
+        await parent.removeEntry(name);
     }
 
     async mkdir(filePath: string) {
