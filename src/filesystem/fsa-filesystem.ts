@@ -28,9 +28,23 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
         return instance;
     }
 
-    // TODO: Create file if nonexistent and mode === 'rw'
     async open(filePath: string, mode: 'ro' | 'rw' = 'ro') {
-        const entry = await this.resolve(this.rootDirectoryHandle, await this.transformToValidCase(filePath));
+        let entry
+        try {
+            entry = await this.resolve(this.rootDirectoryHandle, await this.transformToValidCase(filePath));
+        }catch(ex) {
+            // Does not exist.
+            if(mode === 'rw') {
+                const lastPathSep = filePath.lastIndexOf('/');
+                const parentPath = filePath.substring(0, lastPathSep);
+                const name = filePath.substring(lastPathSep + 1);
+                const parent = await this.resolve(this.rootDirectoryHandle, await this.transformToValidCase(parentPath)) as FileSystemDirectoryHandle;
+                if(parent.kind !== 'directory') throw new Error("Cannot create a file within another file!");
+                entry = await parent.getFileHandle(name, { create: true });
+            } else {
+                throw ex;
+            }
+        }
         if (entry.kind === 'directory') throw new HiMDError('Cannot open directory as file');
         const fileEntry = entry as FileSystemFileHandle;
         const file = await fileEntry.getFile();
