@@ -275,7 +275,8 @@ export async function uploadMP3Track(
     writeStream: HiMDWriteStream,
     mp3Data: ArrayBuffer,
     { title, album, artist }: { title?: string; album?: string; artist?: string },
-    callback?: (object: { blockCount: number; frameNumber: number; byte: number; totalBytes: number }) => void
+    callback?: (object: { blockCount: number; frameNumber: number; byte: number; totalBytes: number }) => void,
+    doNotFlushChanges?: boolean
 ) {
     let frameCount = 0;
     let duration = 0;
@@ -529,7 +530,7 @@ export async function uploadMP3Track(
     himd.writeTrackIndexToTrackSlot(himd.getTrackCount(), slot);
     himd.writeTrackCount(himd.getTrackCount() + 1);
 
-    await himd.flush();
+    if (!doNotFlushChanges) await himd.flush();
 }
 
 export async function uploadMacDependent(
@@ -540,7 +541,8 @@ export async function uploadMacDependent(
     codecInfo: CodecInfo,
     { title, album, artist }: { title?: string; album?: string; artist?: string },
     callback?: (object: { byte: number; totalBytes: number }) => void,
-    cryptoProvider?: CryptoProvider
+    cryptoProvider?: CryptoProvider,
+    doNotFlushChanges?: boolean
 ) {
     // Register one fragment, create a key for it
     const bytesPerFrame = getBytesPerFrame(codecInfo);
@@ -655,7 +657,7 @@ export async function uploadMacDependent(
     himd.writeTrackIndexToTrackSlot(himd.getTrackCount(), newTrackSlot);
     himd.writeTrackCount(himd.getTrackCount() + 1);
 
-    await himd.flush();
+    if (!doNotFlushChanges) await himd.flush();
 }
 
 export async function uploadStreamingMacDependent(
@@ -666,8 +668,9 @@ export async function uploadStreamingMacDependent(
     codecInfo: CodecInfo,
     { title, album, artist }: { title?: string; album?: string; artist?: string },
     streamingCryptoProvider: CryptoBlockProvider,
-    encCallback?: (object: { totalBytes: number; encryptedBytes: number; }) => void,
+    encCallback?: (object: { totalBytes: number; encryptedBytes: number }) => void,
     writeCallback?: (object: { writtenBytes: number; totalBytes: number }) => void,
+    doNotFlushChanges?: boolean
 ) {
     // Register one fragment, create a key for it
     const bytesPerFrame = getBytesPerFrame(codecInfo);
@@ -760,7 +763,7 @@ export async function uploadStreamingMacDependent(
     himd.writeTrackIndexToTrackSlot(himd.getTrackCount(), newTrackSlot);
     himd.writeTrackCount(himd.getTrackCount() + 1);
 
-    await himd.flush();
+    if (!doNotFlushChanges) await himd.flush();
 }
 
 export async function deleteTracks(himd: HiMD, tracksToDelete: number[]) {
