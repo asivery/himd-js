@@ -582,7 +582,7 @@ export class HiMD {
     @dirty addString(string: string, type: HiMDStringType): number {
         let encodedText: number[] | null = null;
 
-        const order = [HiMDStringEncoding.LATIN1, HiMDStringEncoding.SHIFT_JIS, HiMDStringEncoding.UTF16BE];
+        const order = [HiMDStringEncoding.SHIFT_JIS, HiMDStringEncoding.LATIN1, HiMDStringEncoding.UTF16BE];
         for(let entry of order){
             const encoded = encode(entry, string);
             if(!encoded) continue;
