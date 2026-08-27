@@ -377,7 +377,7 @@ export class HiMD {
             ++amt;
             current = this.getStringChunk(current.link);
         }
-        
+
         return amt;
     }
 
@@ -475,7 +475,7 @@ export class HiMD {
         const newTrackIndex = freelistTrack.trackNumber;
         const freeTrackObject = this.getTrack(newTrackIndex);
         freelistTrack.trackNumber = freeTrackObject.trackNumber;
-        track.trackNumber = newTrackIndex;
+        track.trackNumber = this.getTrackCount() + 1;
 
         this.writeTrack(0, freelistTrack);
         this.writeTrack(newTrackIndex, track);

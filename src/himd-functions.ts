@@ -144,7 +144,12 @@ export function moveTrack(himd: HiMD, from: number, to: number) {
         .map((_, i) => himd.trackIndexToTrackSlot(i));
     let [i] = tracks.splice(from, 1);
     tracks.splice(to, 0, i);
-    tracks.forEach((v, i) => himd.writeTrackIndexToTrackSlot(i, v));
+    tracks.forEach((v, i) => {
+        himd.writeTrackIndexToTrackSlot(i, v);
+        const track = himd.getTrack(v);
+        track.trackNumber = i + 1;
+        himd.writeTrack(v, track);
+    });
 }
 
 export function renameTrack(himd: HiMD, index: number, { title, album, artist }: { title?: string; album?: string; artist?: string }) {
@@ -526,7 +531,6 @@ export async function uploadMP3Track(
     };
 
     const slot = himd.addTrack(track);
-    track.trackNumber = slot;
     himd.writeTrackIndexToTrackSlot(himd.getTrackCount(), slot);
     himd.writeTrackCount(himd.getTrackCount() + 1);
 
@@ -820,7 +824,11 @@ export async function deleteTracks(himd: HiMD, tracksToDelete: number[]) {
         himd.removeTrack(trackIndex);
         // Update the track index => track slot table
         for(let i = trackListIndex; i < himd.getTrackCount()-1; i++){
-            himd.writeTrackIndexToTrackSlot(i, himd.trackIndexToTrackSlot(i + 1));
+            const trackSlot = himd.trackIndexToTrackSlot(i + 1);
+            const track = himd.getTrack(trackSlot);
+            track.trackNumber -= 1;
+            himd.writeTrack(trackSlot, track);
+            himd.writeTrackIndexToTrackSlot(i, trackSlot);
         }
         himd.writeTrackIndexToTrackSlot(himd.getTrackCount() - 1, 0);
         himd.writeTrackCount(himd.getTrackCount() - 1);
