@@ -10,13 +10,13 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     // ShouldApplyHMDHifiFixup: If the user was to select the "HMDHifi" folder instead of the root, remove
     // the folder's name from all the paths the application tries to resolve, to prevent erroring out.
     protected shouldApplyHMDHifiFixup = false;
-    protected constructor(protected rootDirectoryHandle: FileSystemDirectoryHandle) {
+    protected constructor(protected rootDirectoryHandle: FileSystemDirectoryHandle, protected totalSpace: number) {
         super();
     }
 
-    static async init(shouldCheckForHiMDRoot: boolean = true, applyHMDHifiFixup: boolean = true) {
+    static async init(shouldCheckForHiMDRoot: boolean = true, applyHMDHifiFixup: boolean = true, totalSpace: number = Math.pow(10, 9)) {
         const handle = await (globalThis as any).showDirectoryPicker({ mode: 'readwrite' });
-        const instance = new FSAHiMDFilesystem(handle);
+        const instance = new FSAHiMDFilesystem(handle, totalSpace);
         if(applyHMDHifiFixup) {
             instance.shouldApplyHMDHifiFixup = handle.name.toLowerCase() === 'hmdhifi';
         }
@@ -92,7 +92,7 @@ export class FSAHiMDFilesystem extends HiMDFilesystem {
     }
 
     async getTotalSpace(): Promise<number> {
-        return Math.pow(10, 9);
+        return this.totalSpace;
     }
 
     async wipeDisc(): Promise<void> {
